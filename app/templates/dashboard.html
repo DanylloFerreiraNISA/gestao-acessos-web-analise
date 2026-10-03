@@ -1,70 +1,9 @@
-<!doctype html>
-<html lang="pt-BR">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Gestao de Acessos</title>
-  <link rel="stylesheet" href="{{ url_for('static', path='/styles.css') }}">
-</head>
-<body>
-  <header>
-    <div>
-      <p class="eyebrow">Grupo Nisa</p>
-      <h1>Gestao de Acessos</h1>
-      <p>Dados carregados diretamente do PostgreSQL.</p>
-    </div>
-    <a class="button" href="/docs">Documentacao da API</a>
-  </header>
-
-  <main>
-    <section class="cards">
-      <article><span>Funcionarios</span><strong>{{ resumo.funcionarios }}</strong></article>
-      <article><span>Perfis</span><strong>{{ resumo.perfis }}</strong></article>
-      <article><span>Acessos</span><strong>{{ resumo.acessos }}</strong></article>
-      <article><span>Vinculos</span><strong>{{ resumo.vinculos }}</strong></article>
-      <article><span>Permissoes</span><strong>{{ resumo.permissoes }}</strong></article>
-    </section>
-
-    <section class="grid">
-      <article class="panel">
-        <div class="panel-title"><h2>Perfis</h2><a href="/api/perfis">Ver JSON</a></div>
-        <input type="search" placeholder="Filtrar perfis" data-filter="profiles-table">
-        <div class="table-wrap">
-          <table id="profiles-table">
-            <thead><tr><th>Perfil</th><th>Situacao</th></tr></thead>
-            <tbody>
-              {% for perfil in perfis %}
-              <tr><td>{{ perfil.nome }}</td><td><span class="status">{{ perfil.situacao }}</span></td></tr>
-              {% else %}
-              <tr><td colspan="2">Nenhum perfil importado.</td></tr>
-              {% endfor %}
-            </tbody>
-          </table>
-        </div>
-      </article>
-
-      <article class="panel">
-        <div class="panel-title"><h2>Funcionarios</h2><a href="/api/funcionarios">Ver JSON</a></div>
-        <input type="search" placeholder="Filtrar funcionario ou login" data-filter="employees-table">
-        <div class="table-wrap">
-          <table id="employees-table">
-            <thead><tr><th>Nome</th><th>Login</th><th>Departamento</th></tr></thead>
-            <tbody>
-              {% for funcionario in funcionarios %}
-              <tr>
-                <td>{{ funcionario.nome }}</td>
-                <td>{{ funcionario.login }}</td>
-                <td>{{ funcionario.departamento.nome if funcionario.departamento else 'Nao definido' }}</td>
-              </tr>
-              {% else %}
-              <tr><td colspan="3">Nenhum funcionario importado.</td></tr>
-              {% endfor %}
-            </tbody>
-          </table>
-        </div>
-      </article>
-    </section>
-  </main>
-  <script src="{{ url_for('static', path='/app.js') }}"></script>
-</body>
-</html>
+{% extends "base.html" %}
+{% block title %}Resumo | Gestao de Acessos{% endblock %}
+{% block content %}
+<section class="hero"><p class="eyebrow">PostgreSQL conectado</p><h1>Resumo do ambiente</h1><p>Dados atuais de usuarios, perfis e permissoes.</p></section>
+<section class="cards">
+  {% for nome, total in resumo.items() %}<article><span>{{ nome|replace('_',' ')|title }}</span><strong>{{ total }}</strong></article>{% endfor %}
+</section>
+<section class="panel action-panel"><h2>Estrutura atual</h2><p>Consulte funcionarios, perfis vinculados e o consolidado de acessos.</p><a class="button" href="/estrutura">Abrir estrutura atual</a></section>
+{% endblock %}

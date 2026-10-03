@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}Estrutura atual{% endblock %}
+{% block content %}
+<section class="hero"><p class="eyebrow">Consulta</p><h1>Estrutura atual</h1><p>Funcionarios ativos e seus dados organizacionais.</p></section>
+<form class="filters" method="get">
+  <input name="busca" value="{{ busca }}" placeholder="Pesquisar nome ou login">
+  <select name="departamento">
+    <option value="">Todos os departamentos</option>
+    {% for item in departamentos %}<option value="{{ item.nome }}" {% if item.nome == departamento_selecionado %}selected{% endif %}>{{ item.nome }}</option>{% endfor %}
+  </select>
+  <button type="submit">Filtrar</button><a href="/estrutura" class="secondary">Limpar</a>
+</form>
+<section class="panel">
+  <div class="panel-title"><h2>Funcionarios</h2><span>{{ funcionarios|length }} encontrados</span></div>
+  <div class="people-grid">
+    {% for item in funcionarios %}
+    <a class="person-card" href="/funcionarios/{{ item.id }}">
+      <strong>{{ item.nome }}</strong><span>{{ item.login }}</span><small>{{ item.departamento.nome if item.departamento else 'Departamento nao definido' }}</small>
+    </a>
+    {% else %}<p>Nenhum funcionario encontrado.</p>{% endfor %}
+  </div>
+</section>
+{% endblock %}
