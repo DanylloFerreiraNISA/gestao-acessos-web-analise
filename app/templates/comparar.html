@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}Comparar perfis{% endblock %}
+{% block content %}
+<section class="hero">
+  <p class="eyebrow">Analise</p>
+  <h1>Comparar perfis</h1>
+  <p>Compare dois perfis atuais e filtre as diferencas encontradas.</p>
+</section>
+<form class="compare-form" method="get">
+  <label>Perfil A<select name="perfil_a" required><option value="">Selecione</option>{% for item in perfis %}<option value="{{ item.id }}" {% if perfil_a and item.id == perfil_a.id %}selected{% endif %}>{{ item.nome }}</option>{% endfor %}</select></label>
+  <label>Perfil B<select name="perfil_b" required><option value="">Selecione</option>{% for item in perfis %}<option value="{{ item.id }}" {% if perfil_b and item.id == perfil_b.id %}selected{% endif %}>{{ item.nome }}</option>{% endfor %}</select></label>
+  <label>Pesquisar<input name="busca" value="{{ busca }}" placeholder="Tela, botao ou caminho"></label>
+  <label>Exibir<select name="categoria"><option value="todos">Todos</option><option value="manter" {% if categoria == 'manter' %}selected{% endif %}>Manter</option><option value="adicionar" {% if categoria == 'adicionar' %}selected{% endif %}>Adicionar</option><option value="remover" {% if categoria == 'remover' %}selected{% endif %}>Remover</option></select></label>
+  <button type="submit">Comparar</button><a class="secondary" href="/comparar">Limpar</a>
+</form>
+{% if resultado %}
+<section class="compare-summary">
+  <article class="keep"><span>Manter</span><strong>{{ resultado.manter|length }}</strong></article>
+  <article class="add"><span>Adicionar</span><strong>{{ resultado.adicionar|length }}</strong></article>
+  <article class="remove"><span>Remover</span><strong>{{ resultado.remover|length }}</strong></article>
+</section>
+{% for titulo, nome, classe in [('Manter','manter','keep'),('Adicionar','adicionar','add'),('Remover','remover','remove')] %}
+<section class="panel compare-section {{ classe }}">
+  <div class="panel-title"><h2>{{ titulo }}</h2><span>{{ resultado[nome]|length }} itens</span></div>
+  <div class="table-wrap"><table><thead><tr><th>Botao</th><th>Tela</th><th>Caminho</th><th>{{ perfil_a.nome }}</th><th>{{ perfil_b.nome }}</th></tr></thead><tbody>
+  {% for item in resultado[nome] %}<tr><td>{{ item.botao }}</td><td>{{ item.tela }}</td><td>{{ item.caminho }}</td><td>{{ item.status_a }}</td><td>{{ item.status_b }}</td></tr>{% else %}<tr><td colspan="5">Nenhum item.</td></tr>{% endfor %}
+  </tbody></table></div>
+</section>
+{% endfor %}
+{% else %}
+<section class="panel"><p>Selecione os dois perfis para iniciar a comparacao.</p></section>
+{% endif %}
+{% endblock %}
