@@ -1,0 +1,73 @@
+.proposal-editor{margin:15px 0;border:1px solid #c7d0d8;background:#fff}.proposal-editor__toolbar{display:flex;gap:8px;align-items:center;padding:8px;border-bottom:1px solid #c7d0d8}.proposal-editor__toolbar input[type=search]{flex:1;padding:7px}.proposal-editor__toolbar button{padding:6px 9px}.proposal-editor__totals{margin-left:auto}.proposal-editor__columns{display:grid;grid-template-columns:58% 42%;min-height:570px}.proposal-editor fieldset{margin:6px;padding:0;border:1px solid #bbc5ce;min-width:0}.proposal-editor legend{padding:0 6px;font-weight:700}.proposal-editor__tree{height:535px;overflow:auto;padding:8px}.proposal-editor__actions{height:445px;overflow:auto}.proposal-editor__empty{height:510px;display:flex;align-items:center;justify-content:center;color:#68737d}.proposal-editor__detail-head{display:flex;justify-content:space-between;align-items:center;padding:10px;border-bottom:1px solid #d8dde2}.proposal-editor__detail-head h3{margin:3px 0}.proposal-editor__detail-tools{padding:7px;border-bottom:1px solid #ddd}.pe-folder,.pe-screen-row{width:100%;border:0;background:transparent;text-align:left;display:flex;align-items:center;gap:5px;min-height:27px;padding:2px 5px}.pe-folder:hover,.pe-screen-row:hover,.pe-screen-row.active{background:#dcecf9}.pe-folder i{width:17px;height:12px;background:#efb63f;border:1px solid #ad791a}.pe-children{margin-left:20px;padding-left:12px;border-left:1px dotted #9ea8b1}.pe-state{font-size:19px;font-weight:800}.pe-state.allowed{color:#14863c}.pe-state.denied{color:#d22626}.pe-screen-row small{margin-left:auto}.pe-hidden,[hidden]{display:none!important}.pe-action{display:grid;grid-template-columns:24px 1fr auto;align-items:center;gap:6px;padding:7px 9px;border-bottom:1px solid #e7eaed}.pe-action em{font-style:normal;font-size:11px;font-weight:700;padding:2px 7px;border-radius:10px}.pe-action em.allowed{color:#087c2e;background:#d8f4df}.pe-action em.denied{color:#bd1d17;background:#fde0dd}@media(max-width:900px){.proposal-editor__columns{grid-template-columns:1fr}.proposal-editor__tree{height:380px}}
+/* Escurece os nomes das telas na árvore de propostas */
+.proposal-editor .pe-screen-row {
+    color: #243746;
+}
+
+.proposal-editor .pe-screen-row > span:nth-child(2) {
+    color: #243746;
+    font-weight: 600;
+}
+
+.proposal-editor .pe-screen-row.active > span:nth-child(2) {
+    color: #102f4a;
+    font-weight: 700;
+}
+
+.proposal-editor .pe-folder,
+.proposal-editor .pe-folder b {
+    color: #263746;
+}
+
+/* CORRECAO_GLOBAL_TEXTOS_ARVORES_PRETO_V1 */
+/* Nomes das arvores: propostas, usuarios e perfis */
+:is(
+  .tree,
+  .access-tree,
+  .permissions-tree,
+  .profile-tree,
+  .profile-access-editor,
+  .profile-tree-column,
+  .profile-tree-scroll,
+  .profile-path-node,
+  .profile-screen-row,
+  .profile-button-group,
+  .user-tree,
+  .user-access-tree,
+  [data-access-editor],
+  [data-tree],
+  [data-path-node]
+) :is(
+  summary,
+  label,
+  .tree-label,
+  .tree-name,
+  .tree-title,
+  .tree-node-name,
+  .tree-folder-name,
+  .path-name,
+  .screen-name,
+  .button-name,
+  .profile-column-title,
+  .profile-screen-name,
+  .profile-path-name,
+  .profile-button-row,
+  .profile-screen-row
+) {
+  color: #000000 !important;
+}
+
+/* Texto direto nos nós, sem alterar ícones ou fundos */
+:is(
+  .profile-path-node > summary,
+  .profile-screen-row,
+  .profile-button-row,
+  .tree-node > summary,
+  .tree-node > label,
+  .access-tree details > summary,
+  .permissions-tree details > summary,
+  .user-access-tree details > summary
+) {
+  color: #000000 !important;
+}
+

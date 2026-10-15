@@ -1,0 +1,1 @@
+<header class="portal-nav"><a href="/portal">Gestão de Acessos</a><nav><a href="/portal/funcionarios">Funcionários</a><a href="/portal/propostas">Propostas</a>{% if user.role in ['ADMIN_TI','ANALISTA_TI'] %}<a href="/admin/contas">Contas</a><a href="/comparar">Comparar</a>{% endif %}</nav><form method="post" action="/logout"><button>Sair</button></form></header>

@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>{% block title %}Gestao de Acessos{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', path='/styles.css') }}">
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="/">Gestao de Acessos</a>
+  <nav><a href="/">Resumo</a><a href="/estrutura">Estrutura atual</a><a href="/perfis">Perfis atuais</a><a href="/comparar">Comparar perfis</a><a href="/docs">API</a></nav>
+</header>
+<main class="container">{% block content %}{% endblock %}</main>
+<script src="{{ url_for('static', path='/app.js') }}"></script>
+
+<script src="{{ url_for('static',path='/classic-tree.js') }}"></script></body>
+</html>

@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}Editar departamento{% endblock %}
+{% block content %}
+<a class="back" href="/admin/departamentos/{{ department.id }}">Voltar para a arvore</a>
+<section class="hero compact">
+  <p class="eyebrow">Cadastros</p>
+  <h1>Editar departamento</h1>
+  <p>Altere o nome ou a situacao do departamento.</p>
+</section>
+<form method="post" class="panel integrated-form">
+  {% if error %}<div class="alert error full">{{ error }}</div>{% endif %}
+  <label>Nome<input name="nome" value="{{ department.nome }}" required></label>
+  <label class="checkbox-field"><input type="checkbox" name="ativo" {% if department.ativo %}checked{% endif %}> Departamento ativo</label>
+  <div class="full form-actions">
+    <a class="secondary-button" href="/admin/departamentos/{{ department.id }}">Cancelar</a>
+    <button>Salvar alteracoes</button>
+  </div>
+</form>
+{% endblock %}

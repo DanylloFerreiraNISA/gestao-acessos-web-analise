@@ -1,6 +1,7 @@
+from datetime import datetime, timezone
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, String, Text, UniqueConstraint, func
+from sqlalchemy import Boolean, DateTime, ForeignKey, String, Text, UniqueConstraint, func, UniqueConstraint, Text, DateTime
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -99,3 +100,78 @@ class PerfilAcesso(Base):
 
     perfil: Mapped["Perfil"] = relationship(back_populates="acessos")
     acesso: Mapped["Acesso"] = relationship(back_populates="perfis")
+
+# IMPORTACAO_E_DEPARTAMENTOS_NN_V1
+class FuncionarioDepartamento(Base):
+    __tablename__ = 'funcionario_departamentos'
+    __table_args__ = (UniqueConstraint('funcionario_id', 'departamento_id', name='uq_funcionario_departamento'),)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    funcionario_id: Mapped[int] = mapped_column(ForeignKey('funcionarios.id', ondelete='CASCADE'), index=True)
+    departamento_id: Mapped[int] = mapped_column(ForeignKey('departamentos.id', ondelete='CASCADE'), index=True)
+
+
+class SystemUserDepartamento(Base):
+    __tablename__ = 'system_user_departments'
+    __table_args__ = (UniqueConstraint('system_user_id', 'departamento_id', name='uq_system_user_departamento'),)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    system_user_id: Mapped[int] = mapped_column(ForeignKey('system_users.id', ondelete='CASCADE'), index=True)
+    departamento_id: Mapped[int] = mapped_column(ForeignKey('departamentos.id', ondelete='CASCADE'), index=True)
+
+
+class ImportacaoPlanilha(Base):
+    __tablename__ = 'importacoes_planilha'
+    id: Mapped[int] = mapped_column(primary_key=True)
+    arquivo: Mapped[str] = mapped_column(String(255), nullable=False)
+    hash_arquivo: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    tipo: Mapped[str] = mapped_column(String(40), nullable=False)
+    status: Mapped[str] = mapped_column(String(30), nullable=False, default='PROCESSANDO')
+    resultado_json: Mapped[str | None] = mapped_column(Text)
+    criado_por_id: Mapped[int | None] = mapped_column(ForeignKey('system_users.id', ondelete='SET NULL'))
+    criado_em: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+
+
+
+# MODULO_CADASTROS_ORGANIZACIONAIS_V1
+class Cargo(Base):
+    __tablename__ = "cargos"
+    __table_args__ = (UniqueConstraint("departamento_id", "nome", name="uq_cargo_departamento_nome"),)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    departamento_id: Mapped[int] = mapped_column(ForeignKey("departamentos.id", ondelete="CASCADE"), index=True)
+    nome: Mapped[str] = mapped_column(String(180), nullable=False, index=True)
+    descricao: Mapped[str | None] = mapped_column(Text)
+    observacao: Mapped[str | None] = mapped_column(Text)
+    ativo: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    departamento: Mapped["Departamento"] = relationship()
+    sistemas: Mapped[list["CargoSistema"]] = relationship(back_populates="cargo", cascade="all, delete-orphan")
+
+class SistemaCorporativo(Base):
+    __tablename__ = "sistemas_corporativos"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    nome: Mapped[str] = mapped_column(String(180), unique=True, nullable=False, index=True)
+    descricao: Mapped[str | None] = mapped_column(Text)
+    ativo: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+
+class CargoSistema(Base):
+    __tablename__ = "cargo_sistemas"
+    __table_args__ = (UniqueConstraint("cargo_id", "sistema_id", name="uq_cargo_sistema"),)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    cargo_id: Mapped[int] = mapped_column(ForeignKey("cargos.id", ondelete="CASCADE"), index=True)
+    sistema_id: Mapped[int] = mapped_column(ForeignKey("sistemas_corporativos.id", ondelete="CASCADE"), index=True)
+    observacao: Mapped[str | None] = mapped_column(Text)
+    obrigatorio: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    cargo: Mapped["Cargo"] = relationship(back_populates="sistemas")
+    sistema: Mapped["SistemaCorporativo"] = relationship()
+
+class FuncionarioCargo(Base):
+    __tablename__ = "funcionario_cargos"
+    __table_args__ = (UniqueConstraint("funcionario_id", "cargo_id", name="uq_funcionario_cargo"),)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    funcionario_id: Mapped[int] = mapped_column(ForeignKey("funcionarios.id", ondelete="CASCADE"), index=True)
+    cargo_id: Mapped[int] = mapped_column(ForeignKey("cargos.id", ondelete="CASCADE"), index=True)
+
+class SystemUserCargo(Base):
+    __tablename__ = "system_user_cargos"
+    __table_args__ = (UniqueConstraint("system_user_id", "cargo_id", name="uq_system_user_cargo"),)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    system_user_id: Mapped[int] = mapped_column(ForeignKey("system_users.id", ondelete="CASCADE"), index=True)
+    cargo_id: Mapped[int] = mapped_column(ForeignKey("cargos.id", ondelete="CASCADE"), index=True)

@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}Importacoes{% endblock %}
+{% block content %}
+{% if import_error %}<div class="alert error"><strong>A importacao nao foi concluida.</strong><br>{{ import_error }}</div>{% endif %}
+<section class="hero compact"><p class="eyebrow">Administracao de T.I.</p><h1>Importacao de usuarios e acessos</h1><p>Envie as duas planilhas. A previa nao altera o banco.</p></section>
+<form class="panel import-form" method="post" action="/portal/importacoes/preview" enctype="multipart/form-data">
+  <label>Consulta de acessos<input type="file" name="arquivo_consulta" accept=".xlsx" required></label>
+  <label>Mapa geral de acessos<input type="file" name="arquivo_mapa" accept=".xlsx" required></label>
+  <button type="submit">Analisar planilhas</button>
+</form>
+{% if preview %}
+<section class="panel"><h2>Pre-visualizacao conjunta</h2>
+<div class="import-summary">
+  <article><span>Usuarios</span><strong>{{ preview.usuarios }}</strong></article>
+  <article><span>Perfis</span><strong>{{ preview.perfis }}</strong></article>
+  <article><span>Vinculos usuario/perfil</span><strong>{{ preview.vinculos_usuario_perfil }}</strong></article>
+  <article><span>Linhas de botoes por cargo</span><strong>{{ preview.linhas_botoes_por_cargo }}</strong></article>
+</div>
+{% for warning in preview.avisos %}<div class="alert">{{ warning }}</div>{% endfor %}
+<h3>Abas reconhecidas</h3><ul>{% for sheet in preview.abas_reconhecidas %}{% if sheet %}<li>{{ sheet }}</li>{% endif %}{% endfor %}</ul>
+<form method="post" action="/portal/importacoes/confirmar" class="confirm-import"><input type="hidden" name="token" value="{{ token }}"><button type="submit" class="approve">Confirmar importacao</button></form>
+</section>{% endif %}
+<section class="panel"><h2>Historico</h2><div class="responsive-table"><table><thead><tr><th>Arquivos</th><th>Status</th><th>Data</th><th>Resultado</th></tr></thead><tbody>{% for item in history %}<tr><td>{{ item.arquivo }}</td><td>{{ item.status }}</td><td>{{ item.criado_em }}</td><td><code>{{ item.resultado_json or '-' }}</code></td></tr>{% else %}<tr><td colspan="4">Nenhuma importacao executada.</td></tr>{% endfor %}</tbody></table></div></section>
+{% endblock %}

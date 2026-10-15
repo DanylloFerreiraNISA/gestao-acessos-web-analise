@@ -1,0 +1,39 @@
+<link rel="stylesheet" href="{{ url_for('static', path='/proposal-editor.css') }}">
+<section class="proposal-editor" data-proposal-editor>
+  <div class="proposal-editor__toolbar">
+    <input type="search" data-editor-search placeholder="Pesquisar caminho, tela ou botão">
+    <label><input type="checkbox" data-editor-only-selected> Somente selecionados</label>
+    <button type="button" data-editor-expand>Expandir</button>
+    <button type="button" data-editor-collapse>Recolher</button>
+    <span class="proposal-editor__totals"><b data-editor-screen-total>0</b> telas · <b data-editor-access-total>0</b> botões</span>
+  </div>
+  <div class="proposal-editor__columns">
+    <fieldset class="proposal-editor__tree-panel">
+      <legend>Opções do Menu</legend>
+      <div class="proposal-editor__tree" data-editor-tree></div>
+    </fieldset>
+    <fieldset class="proposal-editor__actions-panel">
+      <legend>Acessos</legend>
+      <div class="proposal-editor__empty" data-editor-empty>Selecione uma tela à esquerda.</div>
+      <div data-editor-detail hidden>
+        <div class="proposal-editor__detail-head">
+          <div><small data-editor-path></small><h3 data-editor-title></h3></div>
+          <label class="proposal-editor__screen-toggle"><input type="checkbox" data-editor-screen-toggle> Permitir tela</label>
+        </div>
+        <div class="proposal-editor__detail-tools">
+          <button type="button" data-editor-allow-all>Permitir todos</button>
+          <button type="button" data-editor-deny-all>Negar todos</button>
+        </div>
+        <div class="proposal-editor__actions" data-editor-actions></div>
+      </div>
+    </fieldset>
+  </div>
+  <script type="application/json" data-editor-catalog>
+    [{% for a in accesses %}{"id":{{ a.id }},"path":{{ a.caminho_completo|tojson }},"screen":{{ a.tela_final|tojson }},"button":{{ a.botao|tojson }}}{% if not loop.last %},{% endif %}{% endfor %}]
+  </script>
+  <script type="application/json" data-editor-selected>
+    [{% if selected is defined %}{% for access_id in selected %}{{ access_id }}{% if not loop.last %},{% endif %}{% endfor %}{% endif %}]
+  </script>
+  <div data-editor-inputs></div>
+</section>
+<script src="{{ url_for('static', path='/proposal-editor.js') }}" defer></script>

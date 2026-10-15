@@ -1,0 +1,76 @@
+*{box-sizing:border-box}body{margin:0;background:#f4f6f8;color:#172033;font-family:Segoe UI,Arial,sans-serif}.portal-nav{display:flex;align-items:center;gap:26px;padding:14px 4vw;background:#12375f;color:#fff}.portal-nav a{color:#fff;text-decoration:none}.portal-nav>a{font-weight:800;font-size:19px}.portal-nav nav{display:flex;gap:16px;flex:1}.portal-nav button{background:#fff;color:#12375f;border:0;border-radius:6px;padding:7px 11px}main{width:min(1400px,94vw);margin:24px auto}.portal-hero{padding:22px;background:linear-gradient(120deg,#17365d,#2c6fa5);color:#fff;border-radius:12px}.metrics{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-top:16px}.metrics article,.form-card,.list,.cards a{background:#fff;border:1px solid #d7e0e8;border-radius:10px;padding:16px}.metrics span,.cards span,.cards small,.list span{display:block;color:#667085}.metrics strong{font-size:30px}.cards{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.cards a{color:#172033;text-decoration:none}.chips{display:flex;gap:8px;flex-wrap:wrap}.chips span,.status,.permission{padding:4px 9px;border-radius:999px;background:#e7edf3}.title-row{display:flex;justify-content:space-between;align-items:center}.primary,button{display:inline-block;background:#1f4e78;color:#fff;border:0;border-radius:7px;padding:9px 13px;text-decoration:none}.list{display:flex;flex-direction:column;gap:8px}.list>a,.list>div{display:grid;grid-template-columns:1fr 1fr auto;gap:10px;padding:10px;border-bottom:1px solid #e8edf1;color:#172033;text-decoration:none}.form-card{display:grid;gap:12px;max-width:850px}.form-card label{display:grid;gap:5px}.form-card input,.form-card select,.form-card textarea{padding:9px;border:1px solid #aebdca;border-radius:6px}.form-card textarea{min-height:80px}.form-card.compact{grid-template-columns:repeat(3,1fr);max-width:none}.warning,.error{padding:10px;border-left:4px solid #d97706;background:#fff8e7}.error{border-color:#dc2626;background:#fff1f0}.access-list{background:#fff;border:1px solid #d7e0e8;border-radius:8px;max-height:560px;overflow:auto;margin-bottom:14px}.access-list>div{display:grid;grid-template-columns:1fr auto;gap:10px;padding:8px;border-bottom:1px solid #edf0f2}.permission.permitido{background:#d9fbe3;color:#075b24}.permission.negado{background:#ffe0dd;color:#8a1712}.review{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.review form{display:grid;gap:7px}.review textarea{min-height:80px}.login-body{min-height:100vh;display:grid;place-items:center;background:#12375f}.login-card{width:min(420px,92vw);display:grid;gap:12px;padding:28px;background:#fff;border-radius:12px}.login-card label{display:grid;gap:5px}.login-card input{padding:10px;border:1px solid #aebdca;border-radius:6px}@media(max-width:850px){.portal-nav{align-items:flex-start;flex-direction:column}.portal-nav nav{flex-wrap:wrap}.cards,.metrics,.review,.form-card.compact{grid-template-columns:1fr}.list>a,.list>div{grid-template-columns:1fr}}
+/* DIRECTORY_FILTERS_V1 */
+.directory-filters{display:grid;grid-template-columns:minmax(260px,1fr) minmax(230px,.65fr) auto;gap:12px;align-items:end;background:#fff;border:1px solid #d7e0e8;border-radius:10px;padding:16px;margin:18px 0 8px}.directory-filters label{display:grid;gap:6px;font-weight:700}.directory-filters input,.directory-filters select{width:100%;padding:10px;border:1px solid #aebdca;border-radius:7px;background:#fff}.filter-actions{display:flex;gap:9px;align-items:center}.filter-actions a{padding:9px 12px}.filter-result{color:#65758b;margin:10px 0 16px}@media(max-width:800px){.directory-filters{grid-template-columns:1fr}}
+
+/* PALETA_ARVORES_USUARIOS_PERFIS_INICIO */
+/* Paleta compartilhada pelas arvores das telas de usuarios e perfis. */
+:root {
+  --tree-ui-text: #172033;
+  --tree-ui-title: #0f2742;
+  --tree-ui-line: #94a3b8;
+  --tree-ui-selected-bg: #dbeafe;
+  --tree-ui-selected-text: #0f3d66;
+  --tree-ui-allowed: #15803d;
+  --tree-ui-folder: #d97706;
+  --tree-ui-border: #cbd5e1;
+  --tree-ui-bg: #ffffff;
+}
+
+/* Estrutura geral da arvore classica. */
+:is(.classic-access, .classic-tree, .access-tree, .tree, [data-classic-tree]) {
+  color: var(--tree-ui-text) !important;
+  background: var(--tree-ui-bg) !important;
+  border-color: var(--tree-ui-border) !important;
+}
+
+:is(.classic-access, .classic-tree, .access-tree, .tree, [data-classic-tree])
+:is(.tree-node, li, summary, label, span, strong, a) {
+  color: var(--tree-ui-text) !important;
+}
+
+/* Cabecalhos como Opcoes do Menu e Acessos. */
+:is(.classic-access, .classic-tree, .access-tree, [data-classic-tree])
+:is(th, .tree-header, .classic-tree-header, h2, h3) {
+  color: var(--tree-ui-title) !important;
+  border-color: var(--tree-ui-border) !important;
+}
+
+/* Ligacoes pontilhadas. */
+:is(.classic-access, .classic-tree, .access-tree, .tree, [data-classic-tree])
+:is(ul, li, .tree-branch, .tree-children) {
+  border-color: var(--tree-ui-line) !important;
+}
+
+/* Item atual selecionado. */
+:is(.classic-access, .classic-tree, .access-tree, .tree, [data-classic-tree])
+:is(.active, .selected, [aria-selected="true"], .tree-selected) {
+  background: var(--tree-ui-selected-bg) !important;
+  color: var(--tree-ui-selected-text) !important;
+}
+:is(.classic-access, .classic-tree, .access-tree, .tree, [data-classic-tree])
+:is(.active, .selected, [aria-selected="true"], .tree-selected) * {
+  color: var(--tree-ui-selected-text) !important;
+}
+
+/* Indicadores de acesso permitido. */
+:is(.classic-access, .classic-tree, .access-tree, .tree, [data-classic-tree])
+:is(.allowed, .permitido, .check, .checkmark, [data-status="permitido"]) {
+  color: var(--tree-ui-allowed) !important;
+}
+
+/* Pastas feitas com icones vetoriais ou fontes. Imagens emoji permanecem originais. */
+:is(.classic-access, .classic-tree, .access-tree, .tree, [data-classic-tree])
+:is(.folder, .folder-icon, svg.folder, [data-icon="folder"]) {
+  color: var(--tree-ui-folder) !important;
+  fill: var(--tree-ui-folder) !important;
+}
+/* PALETA_ARVORES_USUARIOS_PERFIS_FIM */
+
+/* MODULO_CADASTROS_ORGANIZACIONAIS_V1 */
+.cadastro-cards{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}.cadastro-cards a,.cadastro-list a{padding:20px;background:#fff;border:1px solid #d7e1eb;border-radius:12px;text-decoration:none;color:#172033}.cadastro-cards strong,.cadastro-cards span{display:block}.cadastro-cards span{margin-top:7px;color:#667085}.cadastro-list{display:grid;gap:10px;margin-top:18px}.cadastro-list a{display:flex;justify-content:space-between}.inline-create{display:flex;align-items:end;gap:12px}.inline-create label{display:grid;gap:6px;flex:1}.inline-create input{padding:10px;border:1px solid #aebdca;border-radius:7px}.org-tree{margin-top:14px}.org-cargo{border:1px solid #d7e1eb;border-radius:9px;margin:8px 0;background:#fbfcfe}.org-cargo>summary,.org-children details>summary{cursor:pointer;padding:10px;font-weight:700}.org-children{padding:0 14px 12px 28px}.org-children details{border-left:2px solid #d7e1eb;margin:5px}.org-children ul{margin:4px 0 10px}.user-directory-filters{grid-template-columns:2fr 1fr 1fr 1fr auto}@media(max-width:900px){.cadastro-cards,.user-directory-filters{grid-template-columns:1fr}.inline-create{align-items:stretch;flex-direction:column}}
+
+/* MENU_DEPARTAMENTOS_E_EDICAO_V1 */
+.table-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.secondary-button.small{padding:6px 10px;font-size:13px}
+.department-page-actions{display:flex;justify-content:flex-end;margin:0 0 12px}
+@media(max-width:700px){.table-actions{align-items:stretch;flex-direction:column}.table-actions a{text-align:center}}

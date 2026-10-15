@@ -1,0 +1,65 @@
+:root{--blue:#2563eb;--line:#dbe2ea;--bg:#f5f7fb;--text:#172033;--danger:#b42318}*{box-sizing:border-box}body{margin:0;font:14px Arial,sans-serif;background:var(--bg);color:var(--text)}header{height:58px;background:#172033;color:white;display:flex;align-items:center;justify-content:space-between;padding:0 30px}header a{color:white;text-decoration:none}main{max-width:1450px;margin:28px auto;padding:0 24px}.title{display:flex;justify-content:space-between;align-items:center;margin-bottom:18px}.title h1{margin:0 0 5px}.title p{margin:0;color:#667085}.card{background:white;border:1px solid var(--line);border-radius:10px;padding:18px}.btn,button{border:1px solid var(--line);background:white;border-radius:6px;padding:9px 13px;color:inherit;text-decoration:none;cursor:pointer}.primary{background:var(--blue);color:white;border-color:var(--blue)}.danger{color:var(--danger)}table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:12px;border-bottom:1px solid var(--line)}.actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.actions form{display:inline-flex;gap:5px}.actions a{color:var(--blue)}.badge{font-size:12px;padding:4px 7px;border-radius:10px;background:#eef2f6}.aprovada{background:#dcfae6}.rejeitada{background:#fee4e2}.pendente{background:#fef0c7}.editor{display:grid;grid-template-columns:minmax(420px,1fr) minmax(300px,.55fr);gap:18px;margin-top:18px}.form-head{display:grid;grid-template-columns:1fr 1fr;gap:16px}label{display:flex;flex-direction:column;gap:6px}input,textarea{border:1px solid #cbd5e1;border-radius:6px;padding:9px}textarea{min-height:70px}.tools{display:flex;justify-content:space-between;gap:15px;margin-bottom:15px}.tools input:first-child{flex:1}.tools label,.node-line label,.buttons-panel label{flex-direction:row;align-items:center}.tree,.tree ul{list-style:none;padding-left:20px}.tree{padding-left:0}.node-line{display:flex;align-items:center;gap:7px;min-height:38px}.toggle{border:0;padding:2px;background:transparent}.select-node{margin-left:auto;padding:5px 8px;color:var(--blue)}.buttons-panel h2{margin-top:0}.button-group{display:grid;gap:12px}.check-all{padding-bottom:10px;border-bottom:1px solid var(--line);font-weight:bold}.savebar{position:sticky;bottom:0;background:white;border-top:1px solid var(--line);padding:12px;text-align:right;margin-top:18px}dialog{border:0;border-radius:10px;box-shadow:0 18px 50px #0003;width:440px}dialog textarea{width:100%}.footer{display:flex;justify-content:flex-end;gap:8px;margin-top:15px}@media(max-width:850px){.editor,.form-head{grid-template-columns:1fr}.buttons-panel{min-height:220px}}
+
+/* PALETA_ARVORES_USUARIOS_PERFIS_INICIO */
+/* Paleta compartilhada pelas arvores das telas de usuarios e perfis. */
+:root {
+  --tree-ui-text: #172033;
+  --tree-ui-title: #0f2742;
+  --tree-ui-line: #94a3b8;
+  --tree-ui-selected-bg: #dbeafe;
+  --tree-ui-selected-text: #0f3d66;
+  --tree-ui-allowed: #15803d;
+  --tree-ui-folder: #d97706;
+  --tree-ui-border: #cbd5e1;
+  --tree-ui-bg: #ffffff;
+}
+
+/* Estrutura geral da arvore classica. */
+:is(.classic-access, .classic-tree, .access-tree, .tree, [data-classic-tree]) {
+  color: var(--tree-ui-text) !important;
+  background: var(--tree-ui-bg) !important;
+  border-color: var(--tree-ui-border) !important;
+}
+
+:is(.classic-access, .classic-tree, .access-tree, .tree, [data-classic-tree])
+:is(.tree-node, li, summary, label, span, strong, a) {
+  color: var(--tree-ui-text) !important;
+}
+
+/* Cabecalhos como Opcoes do Menu e Acessos. */
+:is(.classic-access, .classic-tree, .access-tree, [data-classic-tree])
+:is(th, .tree-header, .classic-tree-header, h2, h3) {
+  color: var(--tree-ui-title) !important;
+  border-color: var(--tree-ui-border) !important;
+}
+
+/* Ligacoes pontilhadas. */
+:is(.classic-access, .classic-tree, .access-tree, .tree, [data-classic-tree])
+:is(ul, li, .tree-branch, .tree-children) {
+  border-color: var(--tree-ui-line) !important;
+}
+
+/* Item atual selecionado. */
+:is(.classic-access, .classic-tree, .access-tree, .tree, [data-classic-tree])
+:is(.active, .selected, [aria-selected="true"], .tree-selected) {
+  background: var(--tree-ui-selected-bg) !important;
+  color: var(--tree-ui-selected-text) !important;
+}
+:is(.classic-access, .classic-tree, .access-tree, .tree, [data-classic-tree])
+:is(.active, .selected, [aria-selected="true"], .tree-selected) * {
+  color: var(--tree-ui-selected-text) !important;
+}
+
+/* Indicadores de acesso permitido. */
+:is(.classic-access, .classic-tree, .access-tree, .tree, [data-classic-tree])
+:is(.allowed, .permitido, .check, .checkmark, [data-status="permitido"]) {
+  color: var(--tree-ui-allowed) !important;
+}
+
+/* Pastas feitas com icones vetoriais ou fontes. Imagens emoji permanecem originais. */
+:is(.classic-access, .classic-tree, .access-tree, .tree, [data-classic-tree])
+:is(.folder, .folder-icon, svg.folder, [data-icon="folder"]) {
+  color: var(--tree-ui-folder) !important;
+  fill: var(--tree-ui-folder) !important;
+}
+/* PALETA_ARVORES_USUARIOS_PERFIS_FIM */

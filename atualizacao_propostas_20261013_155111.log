@@ -1,0 +1,18 @@
+﻿[2026-10-13 15:51:11] Backup sendo criado em: C:\Projetos\gestao-acessos-web\backup_atualizacao_propostas_20261013_155111
+[2026-10-13 15:51:12] ERRO: Mais de um arquivo 'access_control.py' foi encontrado. Remova copias duplicadas ou execute na pasta correta:
+C:\Projetos\gestao-acessos-web\app\access_control.py
+C:\Projetos\gestao-acessos-web\app_backup_antes_correcao_integracao\access_control.py
+C:\Projetos\gestao-acessos-web\app_backup_antes_edicao_contas\access_control.py
+C:\Projetos\gestao-acessos-web\app_backup_antes_integracao\access_control.py
+C:\Projetos\gestao-acessos-web\app_backup_antes_integracao\app\access_control.py
+C:\Projetos\gestao-acessos-web\app_backup_antes_seguranca_2\access_control.py
+C:\Projetos\gestao-acessos-web\backup_antes_atualizacao_20261013_112408\app\access_control.py
+C:\Projetos\gestao-acessos-web\backup_antes_atualizacao_20261013_114643\app\access_control.py
+C:\Projetos\gestao-acessos-web\backup_antes_correcao_propostas_20261013_115329\app\access_control.py
+C:\Projetos\gestao-acessos-web\backup_criacao_proposta_20261013_120318\app\access_control.py
+C:\Projetos\gestao-acessos-web\backup_editor_criacao_proposta_20261013_121230\app\access_control.py
+C:\Projetos\gestao-acessos-web\backup_filtros_usuarios_perfis_20261013_120406\app\access_control.py
+C:\Projetos\gestao-acessos-web\backup_origens_proposta_20261013_120333\app\access_control.py
+C:\Projetos\gestao-acessos-web\backup_propostas_20261013_114848\app\access_control.py
+C:\Projetos\gestao-acessos-web\backup_senha_minimo_6_20261013_151651\app\access_control.py
+C:\Projetos\gestao-acessos-web\backup_senha_minimo_6_20261013_151657\app\access_control.py

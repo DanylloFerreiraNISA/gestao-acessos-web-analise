@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block title %}Editar funcionario{% endblock %}
+{% block content %}
+<a class="back" href="/funcionarios/{{ employee.id }}">Voltar para o usuario</a>
+<section class="hero compact"><p class="eyebrow">Cadastro</p><h1>Editar funcionario</h1><p>{% if user.role == 'GESTOR_DEPARTAMENTO' %}Edicao restrita ao seu departamento.{% else %}Edicao administrativa do cadastro importado.{% endif %}</p></section>
+<form class="panel integrated-form" method="post">
+  {% if error %}<div class="alert error full">{{ error }}</div>{% endif %}
+  <label>Nome<input name="name" value="{{ employee.nome }}" required></label>
+  <label>Login no sistema de origem<input name="login" value="{{ employee.login }}" required></label>
+  <label>Departamento<select name="department_id" required {% if user.role == 'GESTOR_DEPARTAMENTO' %}disabled{% endif %}>{% for department in departments %}<option value="{{ department.id }}" {% if employee.departamento_id == department.id %}selected{% endif %}>{{ department.nome }}</option>{% endfor %}</select>{% if user.role == 'GESTOR_DEPARTAMENTO' %}<input type="hidden" name="department_id" value="{{ employee.departamento_id }}">{% endif %}</label>
+  <label class="checkbox-field"><input type="checkbox" name="active" {% if employee.ativo %}checked{% endif %}> Funcionario ativo</label>
+  <div class="full form-actions"><a class="secondary-button" href="/funcionarios/{{ employee.id }}">Cancelar</a><button class="primary">Salvar alteracoes</button></div>
+</form>
+{% endblock %}

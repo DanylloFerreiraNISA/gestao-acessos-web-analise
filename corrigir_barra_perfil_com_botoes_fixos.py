@@ -1,0 +1,186 @@
+from __future__ import annotations
+
+import shutil
+import sys
+from datetime import datetime
+from pathlib import Path
+
+ROOT = Path(sys.argv[1]).resolve() if len(sys.argv) > 1 else Path.cwd().resolve()
+TEMPLATE = ROOT / "app" / "templates" / "perfil.html"
+STAMP = datetime.now().strftime("%Y%m%d_%H%M%S")
+BACKUP = ROOT / f"backup_barra_fixa_perfil_{STAMP}" / "app" / "templates" / "perfil.html"
+
+if not TEMPLATE.exists():
+    raise RuntimeError(f"Template nao encontrado: {TEMPLATE}")
+
+clean_template = r'''{% extends "base.html" %}
+{% block title %}{{ perfil.nome }}{% endblock %}
+{% block content %}
+<a class="back" href="/portal/perfis">Voltar para perfis</a>
+
+<section class="hero compact">
+  <p class="eyebrow">Perfil</p>
+  <h1>{{ perfil.nome }}</h1>
+  <p>{{ usuarios|length }} usuarios vinculados</p>
+  <p id="profile-origin-label"></p>
+  <div id="proposal-profile-actions" hidden>
+    <form method="post" action="/portal/perfis/{{ perfil.id }}/situacao">
+      <input type="hidden" name="situacao" value="{{ 'Inativo' if perfil.situacao != 'Inativo' else 'Ativo' }}">
+      <button type="submit">{{ 'Inativar perfil' if perfil.situacao != 'Inativo' else 'Reativar perfil' }}</button>
+    </form>
+  </div>
+</section>
+
+<div id="profile-fixed-toolbar" class="profile-fixed-toolbar">
+  <div class="profile-fixed-actions">
+    <button type="button" id="profile-show-tree" class="active">Arvore de acessos</button>
+    <button type="button" id="profile-show-paths">Somente caminhos</button>
+    <button type="button" id="profile-show-users">Usuarios vinculados ({{ usuarios|length }})</button>
+  </div>
+  <div id="profile-tree-search-slot"></div>
+</div>
+
+<div id="profile-access-view">
+  <script type="application/json" id="classic-profile">{{ acessos|tojson }}</script>
+  {% set source_id='classic-profile' %}
+  {% set compare=false %}
+  {% include '_classic_access.html' %}
+</div>
+
+<section id="profile-users-view" class="panel" hidden>
+  <div class="profile-users-header">
+    <div>
+      <h2>Usuarios vinculados</h2>
+      <p>{{ usuarios|length }} usuario(s) vinculado(s) a este perfil.</p>
+    </div>
+    <input type="search" id="profile-user-search" placeholder="Pesquisar usuario" aria-label="Pesquisar usuario vinculado">
+  </div>
+  <div class="table-responsive">
+    <table class="profile-users-table">
+      <thead><tr><th>Nome</th><th>Login</th><th>Departamento</th><th>Situacao</th></tr></thead>
+      <tbody>
+        {% for usuario in usuarios %}
+        <tr data-profile-user-row>
+          <td>{{ usuario.nome }}</td>
+          <td>{{ usuario.login }}</td>
+          <td>{{ usuario.departamento.nome if usuario.departamento else 'Sem departamento' }}</td>
+          <td>{{ 'Ativo' if usuario.ativo else 'Inativo' }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="4">Nenhum usuario vinculado a este perfil.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <p id="profile-users-no-results" hidden>Nenhum usuario encontrado.</p>
+</section>
+
+<style>
+.profile-fixed-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin:18px 0 10px}
+.profile-fixed-actions{display:flex;gap:6px;flex-wrap:wrap}
+.profile-fixed-toolbar button{padding:8px 12px;border:1px solid #b8c5d3;border-radius:4px;background:#fff;color:#172033;cursor:pointer}
+.profile-fixed-toolbar button.active{background:#dbeafe;border-color:#60a5fa;color:#173f6b}
+#profile-tree-search-slot{margin-left:auto}
+#profile-tree-search-slot input{min-width:320px}
+#profile-access-view[hidden],#profile-users-view[hidden]{display:none!important}
+.profile-users-header{display:flex;align-items:end;justify-content:space-between;gap:16px;margin-bottom:14px}
+.profile-users-header h2,.profile-users-header p{margin:0 0 4px}
+.profile-users-header input{width:min(320px,100%)}
+.profile-users-table{width:100%;border-collapse:collapse}
+.profile-users-table th,.profile-users-table td{padding:10px;text-align:left;border-bottom:1px solid #d7e0e8;color:#000}
+@media(max-width:760px){.profile-fixed-toolbar{align-items:stretch}.profile-fixed-actions{width:100%}#profile-tree-search-slot{width:100%;margin-left:0}#profile-tree-search-slot input{width:100%;min-width:0}.profile-users-header{display:grid}}
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  const accessView = document.getElementById('profile-access-view');
+  const usersView = document.getElementById('profile-users-view');
+  const treeButton = document.getElementById('profile-show-tree');
+  const pathsButton = document.getElementById('profile-show-paths');
+  const usersButton = document.getElementById('profile-show-users');
+  if (!accessView || !usersView || !treeButton || !pathsButton || !usersButton) return;
+
+  const normalize = value => value.trim().toLocaleLowerCase('pt-BR');
+  const generatedButtons = [...accessView.querySelectorAll('button')];
+  const originalTree = generatedButtons.find(button => {
+    const text = normalize(button.textContent);
+    return text.includes('arvore de acessos') || text.includes('árvore de acessos');
+  });
+  const originalPaths = generatedButtons.find(button => normalize(button.textContent).includes('somente caminhos'));
+
+  // Esconde apenas os dois controles duplicados da arvore classica.
+  if (originalTree) originalTree.style.display = 'none';
+  if (originalPaths) originalPaths.style.display = 'none';
+
+  // Move somente a pesquisa original para a barra fixa.
+  const originalSearch = [...accessView.querySelectorAll('input')].find(input =>
+    (input.placeholder || '').toLocaleLowerCase('pt-BR').includes('pesquisar')
+  );
+  const searchSlot = document.getElementById('profile-tree-search-slot');
+  if (originalSearch && searchSlot) searchSlot.appendChild(originalSearch);
+
+  function activate(selected) {
+    [treeButton, pathsButton, usersButton].forEach(button => button.classList.toggle('active', button === selected));
+  }
+
+  treeButton.addEventListener('click', () => {
+    usersView.hidden = true;
+    accessView.hidden = false;
+    if (originalTree) originalTree.click();
+    activate(treeButton);
+  });
+
+  pathsButton.addEventListener('click', () => {
+    usersView.hidden = true;
+    accessView.hidden = false;
+    if (originalPaths) originalPaths.click();
+    activate(pathsButton);
+  });
+
+  usersButton.addEventListener('click', () => {
+    accessView.hidden = true;
+    usersView.hidden = false;
+    activate(usersButton);
+  });
+
+  const userSearch = document.getElementById('profile-user-search');
+  const rows = [...document.querySelectorAll('[data-profile-user-row]')];
+  const noResults = document.getElementById('profile-users-no-results');
+  if (userSearch) {
+    userSearch.addEventListener('input', () => {
+      const query = userSearch.value.trim().toLocaleLowerCase('pt-BR');
+      let visible = 0;
+      rows.forEach(row => {
+        const show = !query || row.textContent.toLocaleLowerCase('pt-BR').includes(query);
+        row.hidden = !show;
+        if (show) visible += 1;
+      });
+      if (noResults) noResults.hidden = visible !== 0 || rows.length === 0;
+    });
+  }
+
+  fetch('/api/perfis/{{ perfil.id }}/origem-proposta')
+    .then(response => response.ok ? response.json() : null)
+    .then(data => {
+      if (!data) return;
+      const label = document.getElementById('profile-origin-label');
+      if (label) label.textContent = data.generated ? 'Gerado na proposta' : 'Importado do ERP';
+      const actions = document.getElementById('proposal-profile-actions');
+      if (actions && data.generated && data.can_manage) actions.hidden = false;
+    });
+});
+</script>
+{% endblock %}
+'''
+
+BACKUP.parent.mkdir(parents=True, exist_ok=True)
+shutil.copy2(TEMPLATE, BACKUP)
+TEMPLATE.write_text(clean_template, encoding="utf-8")
+
+print("[OK] Botao Usuarios vinculados recriado diretamente no HTML")
+print("[OK] Os tres botoes ficam sempre visiveis no topo")
+print("[OK] Somente caminhos usa o controle original da arvore")
+print("[OK] Destaque azul acompanha o botao selecionado")
+print("[OK] Pesquisa da arvore permanece na barra")
+print(f"[BACKUP] {BACKUP.parent.parent.parent}")
+print("\nReinicie o servidor e pressione Ctrl + F5.")

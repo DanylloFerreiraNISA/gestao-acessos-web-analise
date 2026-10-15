@@ -1,0 +1,7 @@
+﻿[2026-10-13 15:56:04] Backup dos arquivos ativos: C:\Projetos\gestao-acessos-web\backup_correcao_reenvio_20261013_155604
+[2026-10-13 15:56:04] Atualizado: app\access_control.py
+[2026-10-13 15:56:04] Atualizado: app\templates\proposal_edit.html
+[2026-10-13 15:56:04] Atualizado: app\templates\proposal_detail.html
+[2026-10-13 15:56:04] Atualizado: app\templates\portal_profiles.html
+[2026-10-13 15:56:04] Atualizado: app\static\proposal-editor.css
+[2026-10-13 15:56:04] ERRO: A validacao Python falhou.

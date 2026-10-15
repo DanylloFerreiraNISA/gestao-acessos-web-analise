@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}Contas do sistema{% endblock %}
+{% block content %}
+<section class="hero compact">
+  <p class="eyebrow">Administracao</p>
+  <h1>Contas do sistema</h1>
+  <p>Crie contas com e-mail e nome de usuario independentes.</p>
+</section>
+<form class="panel integrated-form account-create-form" method="post">
+  {% if error %}<div class="alert error full">{{ error }}</div>{% endif %}
+  <label>Nome<input name="name" placeholder="Nome da conta" required></label>
+  <label>Usuario<input name="username" placeholder="usuario.exemplo" pattern="[A-Za-z0-9._-]+" required></label>
+  <label>E-mail<input name="email" type="email" placeholder="usuario@empresa.com" required></label>
+  <label>Senha inicial<input name="password" type="password" minlength="10" required></label>
+  <label>Papel<select name="role" required><option value="GESTOR_DEPARTAMENTO">Gestor de departamento</option><option value="ANALISTA_TI">Analista T.I.</option><option value="ADMIN_TI">Admin T.I.</option></select></label>
+  <label>Departamento<select name="department_id"><option value="">Sem departamento</option>{% for department in departments %}<option value="{{ department.id }}">{{ department.nome }}</option>{% endfor %}</select></label>
+  <div class="full form-actions"><button class="primary">Criar conta</button></div>
+</form>
+<section class="panel">
+  <div class="section-heading"><div><p class="eyebrow">Cadastradas</p><h2>Contas existentes</h2></div></div>
+  <div class="responsive-table"><table><thead><tr><th>Nome</th><th>Usuario</th><th>E-mail</th><th>Papel</th><th>Departamento</th><th>Situacao</th><th></th></tr></thead><tbody>{% for account in accounts %}<tr><td>{{ account.name }}</td><td>@{{ account.username or '-' }}</td><td>{{ account.email }}</td><td>{{ account.role }}</td><td>{{ account.department.nome if account.department else '-' }}</td><td>{{ 'Ativa' if account.active else 'Inativa' }}</td><td><a class="button small" href="/admin/contas/{{ account.id }}/editar">Editar</a></td></tr>{% else %}<tr><td colspan="7">Nenhuma conta cadastrada.</td></tr>{% endfor %}</tbody></table></div>
+</section>
+{% endblock %}

@@ -1,0 +1,24 @@
+{# CORRECAO_TELA_USUARIOS_DEPARTAMENTO_FALLBACK_V1 #}
+{% extends "base.html" %}
+
+{% block title %}Usuários | Gestão de Acessos{% endblock %}
+
+{% block content %}
+
+<section class="hero compact"><p class="eyebrow">Escopo departamental</p><h1>Usuários</h1><p>{% if user.department %}Somente funcionários de {{ user.department.nome }}.{% else %}Todos os departamentos autorizados para T.I.{% endif %}</p></section>
+
+<form method="get" class="directory-filters">
+
+<label>Pesquisar por nome<input type="search" name="nome" value="{{ filter_name }}" placeholder="Digite o nome do usuário"></label>
+
+{% if show_department_filter %}<label>Departamento<select name="departamento_id"><option value="">Todos os departamentos</option>{% for d in departments %}<option value="{{ d.id }}" {% if filter_department_id == d.id %}selected{% endif %}>{{ d.nome }}</option>{% endfor %}</select></label>{% endif %}
+
+<div class="filter-actions"><button type="submit">Filtrar</button><a href="/portal/funcionarios">Limpar</a></div>
+
+</form>
+
+<p class="filter-result">{{ employees|length }} usuário(s) encontrado(s).</p>
+
+<section class="people-grid">{% for employee in employees %}<a class="person-card" href="/funcionarios/{{ employee.id }}"><strong>{{ employee.nome }}</strong><span>{{ employee.login }}</span>{% if user.role == 'ADMIN_TI' %}<small>{{ employee.departamento.nome if employee.departamento else 'Sem departamento' }}</small>{% endif %}</a>{% else %}<article class="panel">Nenhum usuário encontrado com os filtros informados.</article>{% endfor %}</section>
+
+{% endblock %}

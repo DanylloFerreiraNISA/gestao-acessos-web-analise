@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block title %}Nova proposta | Gestão de Acessos{% endblock %}
+{% block head %}<link rel="stylesheet" href="{{ url_for('static', path='/proposals.css') }}">{% endblock %}
+{% block content %}
+<a class="back" href="/portal/propostas">Voltar</a>
+<section class="hero compact"><p class="eyebrow">Solicitação de acesso</p><h1>Nova proposta</h1><p>Crie do zero ou escolha uma base. Depois ajuste as telas e os botões.</p></section>
+<form method="post" id="proposalCreateForm" class="proposal-workspace">
+  <input type="hidden" name="access_selection_present" value="1">
+  <section class="form-card proposal-meta-grid">
+    <label>Nome<input name="name" required maxlength="180"></label>
+    <label>Departamento<select name="department_id" required>{% for d in departments %}<option value="{{ d.id }}">{{ d.nome }}</option>{% endfor %}</select></label>
+    <label>Base da proposta<select name="origin" id="origin" required><option value="CRIADO_DO_ZERO">Criar do zero</option><option value="COPIADO_DE_PERFIL">Copiar perfil</option><option value="CONSOLIDADO_FUNCIONARIO">Consolidado de funcionário</option></select></label>
+    <label data-source="profile">Perfil base<select name="source_profile_id" id="sourceProfile"><option value="">Selecione o perfil</option>{% for p in profiles %}<option value="{{ p.id }}">{{ p.nome }}</option>{% endfor %}</select></label>
+    <label data-source="employee" class="hidden-source">Funcionário base<select name="source_employee_id" id="sourceEmployee"><option value="">Selecione o funcionário</option>{% for e in employees %}<option value="{{ e.id }}">{{ e.nome }}</option>{% endfor %}</select></label>
+    <label class="span-2">Descrição<textarea name="description"></textarea></label>
+    <label class="span-2">Justificativa<textarea name="justification"></textarea></label>
+  </section>
+  <div id="baseNote" class="proposal-base-note">Selecione o perfil. Somente os acessos permitidos começarão marcados.</div>
+  {% set selected = [] %}
+  {% include "_proposal_editor.html" %}
+  <div class="proposal-save"><button type="submit">Criar proposta</button></div>
+</form>
+{% endblock %}
+{% block scripts %}<script src="{{ url_for('static', path='/proposals.js') }}"></script><script>
+// CRIAR_ZERO_SEM_BASE_V5
+(() => {
+  const origin = document.getElementById('origin');
+  const profile = document.getElementById('sourceProfile');
+  const employee = document.getElementById('sourceEmployee');
+  const note = document.getElementById('baseNote');
+  const form = document.getElementById('proposalCreateForm');
+  if (!origin) return;
+
+  const profileWrap = profile?.closest('[data-source]');
+  const employeeWrap = employee?.closest('[data-source]');
+
+  function enforceZeroMode() {
+    if (origin.value !== 'CRIADO_DO_ZERO') return;
+    profileWrap?.classList.add('hidden-source');
+    employeeWrap?.classList.add('hidden-source');
+    if (profile) {
+      profile.required = false;
+      profile.disabled = true;
+      profile.value = '';
+    }
+    if (employee) {
+      employee.required = false;
+      employee.disabled = true;
+      employee.value = '';
+    }
+    if (note) note.textContent = 'Criando do zero: selecione manualmente as telas e os botões desejados.';
+  }
+
+  function releaseBaseFields() {
+    if (origin.value === 'CRIADO_DO_ZERO') return;
+    if (profile) profile.disabled = false;
+    if (employee) employee.disabled = false;
+  }
+
+  origin.addEventListener('change', () => {
+    releaseBaseFields();
+    setTimeout(enforceZeroMode, 0);
+  });
+
+  form?.addEventListener('submit', () => {
+    if (origin.value === 'CRIADO_DO_ZERO') {
+      if (profile) { profile.required = false; profile.disabled = true; }
+      if (employee) { employee.required = false; employee.disabled = true; }
+    }
+  }, true);
+
+  enforceZeroMode();
+})();
+</script>{% endblock %}

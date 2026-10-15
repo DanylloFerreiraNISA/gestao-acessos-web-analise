@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}Editar proposta | Gestão de Acessos{% endblock %}
+{% block head %}<link rel="stylesheet" href="{{ url_for('static', path='/proposals.css') }}">{% endblock %}
+{% block content %}
+<a class="back" href="/portal/propostas/{{ proposal.id }}">Voltar</a>
+<section class="hero compact"><p class="eyebrow">Solicitação de acesso</p><h1>Editar proposta</h1><p>Selecione uma tela à esquerda e ajuste seus botões à direita.</p></section>
+<form method="post" class="proposal-workspace">
+  <section class="form-card proposal-meta-grid">
+    <label>Nome<input name="name" required value="{{ proposal.name }}"></label>
+    <label>Departamento<input value="{{ proposal.department.nome }}" disabled></label>
+    <label class="span-2">Descrição<textarea name="description">{{ proposal.description or '' }}</textarea></label>
+    <label class="span-2">Justificativa<textarea name="justification">{{ proposal.justification or '' }}</textarea></label>
+  </section>
+  {% include "_proposal_editor.html" %}
+  <div class="proposal-save"><button type="submit">Salvar alterações</button></div>
+</form>
+{% endblock %}
+{% block scripts %}<script src="{{ url_for('static', path='/proposals.js') }}"></script>{% endblock %}

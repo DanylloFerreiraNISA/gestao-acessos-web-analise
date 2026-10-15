@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}Editar conta{% endblock %}
+{% block content %}
+<a class="back" href="/admin/contas">Voltar para contas</a>
+<section class="hero compact"><p class="eyebrow">Administracao</p><h1>Editar conta</h1><p>Altere e-mail, usuario, papel, departamento, situacao ou senha.</p></section>
+<form class="panel integrated-form" method="post">
+  {% if error %}<div class="alert error full">{{ error }}</div>{% endif %}
+  <label>Nome<input name="name" value="{{ account.name }}" required></label>
+  <label>Usuario<input name="username" value="{{ account.username or '' }}" placeholder="usuario.exemplo" pattern="[A-Za-z0-9._-]+" required></label>
+  <label>E-mail<input name="email" type="email" value="{{ account.email }}" required></label>
+  <label>Papel<select name="role" required><option value="GESTOR_DEPARTAMENTO" {% if account.role == 'GESTOR_DEPARTAMENTO' %}selected{% endif %}>Gestor de departamento</option><option value="ANALISTA_TI" {% if account.role == 'ANALISTA_TI' %}selected{% endif %}>Analista T.I.</option><option value="ADMIN_TI" {% if account.role == 'ADMIN_TI' %}selected{% endif %}>Admin T.I.</option></select></label>
+  <label>Departamento<select name="department_id"><option value="">Sem departamento</option>{% for department in departments %}<option value="{{ department.id }}" {% if account.department_id == department.id %}selected{% endif %}>{{ department.nome }}</option>{% endfor %}</select></label>
+  <label>Nova senha <small>deixe vazio para manter</small><input name="new_password" type="password" minlength="10"></label>
+  <label class="checkbox-field"><input type="checkbox" name="active" {% if account.active %}checked{% endif %}> Conta ativa</label>
+  <div class="full form-actions"><a class="secondary-button" href="/admin/contas">Cancelar</a><button class="primary">Salvar alteracoes</button></div>
+</form>
+{% endblock %}

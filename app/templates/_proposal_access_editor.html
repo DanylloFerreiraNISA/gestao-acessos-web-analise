@@ -1,0 +1,31 @@
+<!-- PROPOSAL_ACCESS_EDITOR_START -->
+<link rel="stylesheet" href="{{ url_for('static', path='proposal-access-editor.css') }}">
+<section class="pae-shell" data-proposal-access-editor>
+  <header class="pae-header">
+    <div><h2>Permissões da proposta</h2><p>Selecione uma tela no menu e configure seus botões à direita.</p></div>
+    <div class="pae-stats"><span><b data-selected-screens>0</b> telas</span><span><b data-selected-buttons>0</b> botões</span></div>
+  </header>
+  <div class="pae-toolbar">
+    <input type="search" data-tree-search placeholder="Pesquisar caminho, tela ou botão">
+    <label><input type="checkbox" data-only-selected> Somente selecionados</label>
+    <button type="button" data-expand-all>Expandir</button><button type="button" data-collapse-all>Recolher</button>
+  </div>
+  <div class="pae-columns">
+    <fieldset class="pae-tree-panel"><legend>Opções do Menu</legend><div class="pae-tree" data-tree></div></fieldset>
+    <fieldset class="pae-actions-panel"><legend>Acessos</legend>
+      <div class="pae-empty" data-empty>Selecione uma tela para configurar seus botões.</div>
+      <div class="pae-action-content" data-action-content hidden>
+        <div class="pae-action-head"><div><small data-selected-path></small><h3 data-selected-title></h3></div>
+          <label class="pae-screen-toggle"><input type="checkbox" data-screen-toggle><span>Permitir tela</span></label>
+        </div>
+        <div class="pae-action-tools"><button type="button" data-check-all>Permitir todos</button><button type="button" data-uncheck-all>Negar todos</button></div>
+        <div class="pae-actions" data-actions></div>
+      </div>
+    </fieldset>
+  </div>
+  <input type="hidden" name="proposal_selection_json" data-selection-input>
+  <script type="application/json" data-catalog-json>{{ arvore_permissoes|default([])|tojson }}</script>
+  <script type="application/json" data-selection-json>{{ proposta_permissoes|default({})|tojson }}</script>
+</section>
+<script src="{{ url_for('static', path='proposal-access-editor.js') }}" defer></script>
+<!-- PROPOSAL_ACCESS_EDITOR_END -->

@@ -1,7 +1,7 @@
 from typing import Annotated
 
 from fastapi import Depends, FastAPI, HTTPException, Query, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import func, or_, select, text
@@ -61,6 +61,66 @@ def consolidado_funcionario(session: Session, funcionario_id: int):
         if str(row.status).casefold() == "permitido":
             item["status"] = "Permitido"
         elif item["status"] != "Permitido" and str(row.status).casefold() == "negado":
+            item["status"] = "Negado"
+
+    prioridade = {"Permitido": 0, "Nao identificado": 1, "Negado": 2}
+    return sorted(
+        agrupado.values(),
+        key=lambda item: (
+            prioridade.get(item["status"], 1),
+            item["caminho"].casefold(),
+            item["tela"].casefold(),
+            item["botao"].casefold(),
+        ),
+    )
+
+
+def acessos_serializados_perfil(session: Session, perfil_id: int):
+    linhas = session.execute(
+        select(Acesso, PerfilAcesso.status)
+        .join(PerfilAcesso, PerfilAcesso.acesso_id == Acesso.id)
+        .where(PerfilAcesso.perfil_id == perfil_id)
+        .order_by(Acesso.caminho_completo, Acesso.tela_final, Acesso.botao)
+    ).all()
+    return [
+        {
+            "id": acesso.id,
+            "caminho": acesso.caminho_completo,
+            "tela": acesso.tela_final,
+            "botao": acesso.botao,
+            "status": status,
+        }
+        for acesso, status in linhas
+    ]
+
+
+def consolidado_serializado_funcionario(session: Session, funcionario_id: int):
+    linhas = session.execute(
+        select(Acesso, PerfilAcesso.status, Perfil.nome.label("perfil_nome"))
+        .join(PerfilAcesso, PerfilAcesso.acesso_id == Acesso.id)
+        .join(Perfil, Perfil.id == PerfilAcesso.perfil_id)
+        .join(FuncionarioPerfil, FuncionarioPerfil.perfil_id == Perfil.id)
+        .where(FuncionarioPerfil.funcionario_id == funcionario_id)
+    ).all()
+
+    agrupado = {}
+    for acesso, status, perfil_nome in linhas:
+        item = agrupado.setdefault(
+            acesso.id,
+            {
+                "id": acesso.id,
+                "caminho": acesso.caminho_completo,
+                "tela": acesso.tela_final,
+                "botao": acesso.botao,
+                "status": "Nao identificado",
+                "perfis": [],
+            },
+        )
+        item["perfis"].append({"nome": perfil_nome, "status": status})
+        normalizado = str(status or "").strip().casefold()
+        if normalizado == "permitido":
+            item["status"] = "Permitido"
+        elif item["status"] != "Permitido" and normalizado == "negado":
             item["status"] = "Negado"
 
     prioridade = {"Permitido": 0, "Nao identificado": 1, "Negado": 2}
@@ -137,20 +197,10 @@ def api_consolidado(funcionario_id: int, session: DatabaseSession):
     return consolidado_funcionario(session, funcionario_id)
 
 
-@app.get("/", response_class=HTMLResponse)
-def dashboard(request: Request, session: DatabaseSession):
-    funcionarios = session.scalars(
-        select(Funcionario)
-        .options(selectinload(Funcionario.departamento))
-        .order_by(Funcionario.nome)
-        .limit(50)
-    ).all()
-    perfis = session.scalars(select(Perfil).order_by(Perfil.nome).limit(50)).all()
-    return templates.TemplateResponse(
-        request=request,
-        name="dashboard.html",
-        context={"resumo": resumo(session), "perfis": perfis, "funcionarios": funcionarios},
-    )
+@app.get('/')
+def dashboard():
+    # RAIZ_REDIRECIONA_PARA_LOGIN_V2
+    return RedirectResponse('/login', status_code=303)
 
 
 @app.get("/estrutura", response_class=HTMLResponse)
@@ -185,7 +235,11 @@ def estrutura_atual(
 
 
 @app.get("/funcionarios/{funcionario_id}", response_class=HTMLResponse)
-def funcionario_detalhe(request: Request, funcionario_id: int, session: DatabaseSession):
+def funcionario_detalhe(
+    request: Request,
+    funcionario_id: int,
+    session: DatabaseSession,
+):
     funcionario = session.scalar(
         select(Funcionario)
         .options(
@@ -196,13 +250,27 @@ def funcionario_detalhe(request: Request, funcionario_id: int, session: Database
     )
     if funcionario is None:
         raise HTTPException(status_code=404, detail="Funcionario nao encontrado")
-    acessos = consolidado_funcionario(session, funcionario_id)
+
+    por_perfil = [
+        {
+            "perfil": vinculo.perfil,
+            "acessos": acessos_serializados_perfil(session, vinculo.perfil.id),
+        }
+        for vinculo in sorted(
+            funcionario.perfis,
+            key=lambda item: item.perfil.nome.casefold(),
+        )
+    ]
+
     return templates.TemplateResponse(
         request=request,
         name="funcionario.html",
-        context={"funcionario": funcionario, "acessos": acessos},
+        context={
+            "funcionario": funcionario,
+            "consolidado": consolidado_serializado_funcionario(session, funcionario_id),
+            "por_perfil": por_perfil,
+        },
     )
-
 
 @app.get("/perfis", response_class=HTMLResponse)
 def perfis_atuais(
@@ -259,32 +327,23 @@ def perfis_atuais(
 
 
 @app.get("/perfis/{perfil_id}", response_class=HTMLResponse)
-def perfil_detalhe(request: Request, perfil_id: int, session: DatabaseSession):
+def perfil_detalhe(
+    request: Request,
+    perfil_id: int,
+    session: DatabaseSession,
+):
     perfil = session.get(Perfil, perfil_id)
     if perfil is None:
         raise HTTPException(status_code=404, detail="Perfil nao encontrado")
 
-    usuarios = session.execute(
+    usuarios = session.scalars(
         select(Funcionario)
         .join(FuncionarioPerfil, FuncionarioPerfil.funcionario_id == Funcionario.id)
         .where(FuncionarioPerfil.perfil_id == perfil_id)
         .options(selectinload(Funcionario.departamento))
         .order_by(Funcionario.nome)
-    ).scalars().all()
-
-    acessos = session.execute(
-        select(Acesso, PerfilAcesso.status)
-        .join(PerfilAcesso, PerfilAcesso.acesso_id == Acesso.id)
-        .where(PerfilAcesso.perfil_id == perfil_id)
-        .order_by(
-            Acesso.caminho_completo,
-            Acesso.tela_final,
-            Acesso.botao,
-        )
     ).all()
-
-    permitidos = sum(1 for _, status in acessos if str(status).casefold() == "permitido")
-    negados = sum(1 for _, status in acessos if str(status).casefold() == "negado")
+    acessos = acessos_serializados_perfil(session, perfil_id)
 
     return templates.TemplateResponse(
         request=request,
@@ -293,11 +352,10 @@ def perfil_detalhe(request: Request, perfil_id: int, session: DatabaseSession):
             "perfil": perfil,
             "usuarios": usuarios,
             "acessos": acessos,
-            "permitidos": permitidos,
-            "negados": negados,
+            "permitidos": sum(1 for item in acessos if str(item["status"] or "").casefold() == "permitido"),
+            "negados": sum(1 for item in acessos if str(item["status"] or "").casefold() == "negado"),
         },
     )
-
 
 @app.get("/api/perfis/{perfil_id}")
 def api_perfil_detalhe(perfil_id: int, session: DatabaseSession):
@@ -341,8 +399,8 @@ def api_perfil_detalhe(perfil_id: int, session: DatabaseSession):
 
 
 
-def mapa_perfil(session: Session, perfil_id: int):
-    rows = session.execute(
+def _mapa_comparacao_perfil(session: Session, perfil_id: int):
+    linhas = session.execute(
         select(Acesso, PerfilAcesso.status)
         .join(PerfilAcesso, PerfilAcesso.acesso_id == Acesso.id)
         .where(PerfilAcesso.perfil_id == perfil_id)
@@ -353,86 +411,142 @@ def mapa_perfil(session: Session, perfil_id: int):
             "caminho": acesso.caminho_completo,
             "tela": acesso.tela_final,
             "botao": acesso.botao,
-            "status": status,
+            "status": status or "Nao identificado",
         }
-        for acesso, status in rows
+        for acesso, status in linhas
     }
 
 
-def comparar_mapas(mapa_a, mapa_b):
-    ids_a = set(mapa_a)
-    ids_b = set(mapa_b)
-    manter = []
-    adicionar = []
-    remover = []
+def _comparar_perfis_alinhados(session: Session, perfil_a_id: int, perfil_b_id: int):
+    mapa_a = _mapa_comparacao_perfil(session, perfil_a_id)
+    mapa_b = _mapa_comparacao_perfil(session, perfil_b_id)
+    resultado = []
 
-    for acesso_id in ids_a | ids_b:
-        a = mapa_a.get(acesso_id)
-        b = mapa_b.get(acesso_id)
-        if a and b:
-            item = dict(a)
-            item["status_a"] = a["status"]
-            item["status_b"] = b["status"]
-            if str(a["status"]).casefold() == str(b["status"]).casefold():
-                item["categoria"] = "manter"
-                manter.append(item)
-            elif str(a["status"]).casefold() == "permitido":
-                item["categoria"] = "adicionar"
-                adicionar.append(item)
-            else:
-                item["categoria"] = "remover"
-                remover.append(item)
-        elif a:
-            item = dict(a)
-            item["status_a"] = a["status"]
-            item["status_b"] = "Ausente"
-            item["categoria"] = "adicionar"
-            adicionar.append(item)
+    for acesso_id in set(mapa_a) | set(mapa_b):
+        acesso_a = mapa_a.get(acesso_id)
+        acesso_b = mapa_b.get(acesso_id)
+        base = acesso_a or acesso_b
+        status_a = acesso_a["status"] if acesso_a else "Ausente"
+        status_b = acesso_b["status"] if acesso_b else "Ausente"
+        normal_a = str(status_a).strip().casefold()
+        normal_b = str(status_b).strip().casefold()
+
+        if normal_a == normal_b:
+            categoria = "igual"
+        elif acesso_a is None:
+            categoria = "somente_b"
+        elif acesso_b is None:
+            categoria = "somente_a"
         else:
-            item = dict(b)
-            item["status_a"] = "Ausente"
-            item["status_b"] = b["status"]
-            item["categoria"] = "remover"
-            remover.append(item)
+            categoria = "status_diferente"
 
-    ordenar = lambda x: (x["caminho"].casefold(), x["tela"].casefold(), x["botao"].casefold())
+        resultado.append({
+            "id": acesso_id,
+            "caminho": base["caminho"],
+            "tela": base["tela"],
+            "botao": base["botao"],
+            "status_a": status_a,
+            "status_b": status_b,
+            "categoria": categoria,
+        })
+
+    return sorted(
+        resultado,
+        key=lambda item: (
+            item["caminho"].casefold(),
+            item["tela"].casefold(),
+            item["botao"].casefold(),
+        ),
+    )
+
+
+def _mapa_comparacao_perfil(session: Session, perfil_id: int):
+    linhas = session.execute(
+        select(Acesso, PerfilAcesso.status)
+        .join(PerfilAcesso, PerfilAcesso.acesso_id == Acesso.id)
+        .where(PerfilAcesso.perfil_id == perfil_id)
+    ).all()
     return {
-        "manter": sorted(manter, key=ordenar),
-        "adicionar": sorted(adicionar, key=ordenar),
-        "remover": sorted(remover, key=ordenar),
+        acesso.id: {
+            "id": acesso.id,
+            "caminho": acesso.caminho_completo,
+            "tela": acesso.tela_final,
+            "botao": acesso.botao,
+            "status": status or "Nao identificado",
+        }
+        for acesso, status in linhas
     }
+
+
+def _comparar_perfis_alinhados(session: Session, perfil_a_id: int, perfil_b_id: int):
+    mapa_a = _mapa_comparacao_perfil(session, perfil_a_id)
+    mapa_b = _mapa_comparacao_perfil(session, perfil_b_id)
+    resultado = []
+
+    for acesso_id in set(mapa_a) | set(mapa_b):
+        acesso_a = mapa_a.get(acesso_id)
+        acesso_b = mapa_b.get(acesso_id)
+        base = acesso_a or acesso_b
+        status_a = acesso_a["status"] if acesso_a else "Ausente"
+        status_b = acesso_b["status"] if acesso_b else "Ausente"
+        normal_a = str(status_a).strip().casefold()
+        normal_b = str(status_b).strip().casefold()
+
+        if normal_a == normal_b:
+            categoria = "igual"
+        elif acesso_a is None:
+            categoria = "somente_b"
+        elif acesso_b is None:
+            categoria = "somente_a"
+        else:
+            categoria = "status_diferente"
+
+        resultado.append({
+            "id": acesso_id,
+            "caminho": base["caminho"],
+            "tela": base["tela"],
+            "botao": base["botao"],
+            "status_a": status_a,
+            "status_b": status_b,
+            "categoria": categoria,
+        })
+
+    return sorted(
+        resultado,
+        key=lambda item: (
+            item["caminho"].casefold(),
+            item["tela"].casefold(),
+            item["botao"].casefold(),
+        ),
+    )
 
 
 @app.get("/comparar", response_class=HTMLResponse)
-def comparar_perfis(
+def comparar_perfis_alinhados(
     request: Request,
     session: DatabaseSession,
     perfil_a: int | None = None,
     perfil_b: int | None = None,
-    busca: str = "",
-    categoria: str = "todos",
 ):
     perfis = session.scalars(select(Perfil).order_by(Perfil.nome)).all()
-    resultado = None
     selecionado_a = session.get(Perfil, perfil_a) if perfil_a else None
     selecionado_b = session.get(Perfil, perfil_b) if perfil_b else None
+    itens = []
 
     if selecionado_a and selecionado_b:
-        resultado = comparar_mapas(
-            mapa_perfil(session, selecionado_a.id),
-            mapa_perfil(session, selecionado_b.id),
+        itens = _comparar_perfis_alinhados(
+            session,
+            selecionado_a.id,
+            selecionado_b.id,
         )
-        termo = busca.strip().casefold()
-        if termo:
-            for nome in resultado:
-                resultado[nome] = [
-                    item for item in resultado[nome]
-                    if termo in " ".join((item["caminho"], item["tela"], item["botao"])).casefold()
-                ]
-        if categoria in {"manter", "adicionar", "remover"}:
-            for nome in list(resultado):
-                if nome != categoria:
-                    resultado[nome] = []
+
+    totais = {
+        "total": len(itens),
+        "iguais": sum(1 for item in itens if item["categoria"] == "igual"),
+        "diferentes": sum(1 for item in itens if item["categoria"] == "status_diferente"),
+        "somente_a": sum(1 for item in itens if item["categoria"] == "somente_a"),
+        "somente_b": sum(1 for item in itens if item["categoria"] == "somente_b"),
+    }
 
     return templates.TemplateResponse(
         request=request,
@@ -441,12 +555,10 @@ def comparar_perfis(
             "perfis": perfis,
             "perfil_a": selecionado_a,
             "perfil_b": selecionado_b,
-            "resultado": resultado,
-            "busca": busca,
-            "categoria": categoria,
+            "itens": itens,
+            "totais": totais,
         },
     )
-
 
 @app.get("/api/comparar")
 def api_comparar(perfil_a: int, perfil_b: int, session: DatabaseSession):
@@ -461,3 +573,9 @@ def api_comparar(perfil_a: int, perfil_b: int, session: DatabaseSession):
         "totais": {nome: len(itens) for nome, itens in resultado.items()},
         "resultado": resultado,
     }
+
+
+from app.access_control import create_tables as create_access_tables, integrated_access_middleware, router as access_router
+create_access_tables()
+app.middleware('http')(integrated_access_middleware)
+app.include_router(access_router)

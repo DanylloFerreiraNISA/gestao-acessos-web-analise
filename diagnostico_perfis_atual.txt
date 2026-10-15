@@ -1,0 +1,1020 @@
+
+==========================================================================================
+app\access_control.py
+==========================================================================================
+
+...
+
+00060:     workflow_status: Mapped[str] = mapped_column(String(30), nullable=False, default='RASCUNHO')
+00061:     source_profile_id: Mapped[int | None] = mapped_column(ForeignKey('perfis.id'))
+00062:     source_employee_id: Mapped[int | None] = mapped_column(ForeignKey('funcionarios.id'))
+00063:     created_by_id: Mapped[int] = mapped_column(ForeignKey('system_users.id'), nullable=False)
+00064:     reviewed_by_id: Mapped[int | None] = mapped_column(ForeignKey('system_users.id'))
+00065:     imported_result_profile_id: Mapped[int | None] = mapped_column(ForeignKey('perfis.id'))
+00066:     version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+00067:     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+00068:     submitted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+00069:     reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+00070:     department: Mapped[Departamento] = relationship(foreign_keys=[department_id])
+00071:     source_profile: Mapped[Perfil | None] = relationship(foreign_keys=[source_profile_id])
+00072:     source_employee: Mapped[Funcionario | None] = relationship(foreign_keys=[source_employee_id])
+00073:     accesses: Mapped[list['ProfileProposalAccess']] = relationship(back_populates='proposal', cascade='all, delete-orphan')
+00074: 
+00075: 
+00076: class ProfileProposalAccess(Base):
+00077:     __tablename__ = 'profile_proposal_accesses'
+00078:     __table_args__ = (UniqueConstraint('proposal_id', 'access_id', name='uq_proposal_access'),)
+00079:     id: Mapped[int] = mapped_column(Integer, primary_key=True)
+00080:     proposal_id: Mapped[int] = mapped_column(ForeignKey('profile_proposals.id', ondelete='CASCADE'), index=True)
+00081:     access_id: Mapped[int] = mapped_column(ForeignKey('acessos.id'), index=True)
+00082:     status: Mapped[str] = mapped_column(String(30), nullable=False)
+00083:     proposal: Mapped[ProfileProposal] = relationship(back_populates='accesses')
+00084:     access: Mapped[Acesso] = relationship()
+00085: 
+00086: 
+00087: class ProposalHistory(Base):
+00088:     __tablename__ = 'proposal_history'
+00089:     id: Mapped[int] = mapped_column(Integer, primary_key=True)
+00090:     proposal_id: Mapped[int] = mapped_column(ForeignKey('profile_proposals.id', ondelete='CASCADE'), index=True)
+00091:     user_id: Mapped[int] = mapped_column(ForeignKey('system_users.id'))
+00092:     action: Mapped[str] = mapped_column(String(60), nullable=False)
+00093:     details: Mapped[str | None] = mapped_column(Text)
+00094:     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+00095: 
+00096: 
+00097: class LoginSession(Base):
+00098:     __tablename__ = 'login_sessions'
+00099:     id: Mapped[int] = mapped_column(Integer, primary_key=True)
+00100:     token_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+00101:     user_id: Mapped[int] = mapped_column(ForeignKey('system_users.id'), index=True)
+00102:     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+00103:     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+00104:     last_activity_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), index=True)
+00105:     user: Mapped[SystemUser] = relationship()
+00106: 
+00107: 
+00108: def create_tables():
+00109:     Base.metadata.create_all(bind=engine)
+00110: 
+00111: 
+00112: def safe_next_url(value: str | None) -> str:
+00113:     if not value:
+00114:         return '/portal'
+00115:     parsed = urlparse(value)
+00116:     if parsed.scheme or parsed.netloc or not value.startswith('/') or value.startswith('//'):
+00117:         return '/portal'
+00118:     return value
+00119: 
+
+...
+
+00680:     proposal.workflow_status = 'EM_REVISAO'; proposal.submitted_at = datetime.now(timezone.utc)
+00681:     create_history(session, proposal.id, user.id, 'ENVIADA_PARA_TI')
+00682:     session.commit(); return RedirectResponse(f'/portal/propostas/{proposal.id}', status_code=303)
+00683: 
+00684: 
+00685: @router.get('/portal/perfis')
+00686: def portal_profiles_redirect(user: Annotated[SystemUser, Depends(require_user)]):
+00687:     return RedirectResponse('/perfis', status_code=303)
+00688: 
+00689: 
+00690: @router.get('/portal/perfis/{profile_id}')
+00691: def portal_profile_redirect(profile_id: int, user: Annotated[SystemUser, Depends(require_user)]):
+00692:     return RedirectResponse(f'/perfis/{profile_id}', status_code=303)
+00693: 
+00694: 
+00695: @router.get('/admin/contas', response_class=HTMLResponse)
+00696: def accounts(
+00697:     request: Request,
+00698:     session: Db,
+00699:     user: Annotated[SystemUser, Depends(require_admin)],
+00700: ):
+00701:     accounts = session.scalars(
+00702:         select(SystemUser)
+00703:         .options(selectinload(SystemUser.department))
+00704:         .order_by(SystemUser.name, SystemUser.email)
+00705:     ).all()
+00706:     departments = session.scalars(
+00707:         select(Departamento).order_by(Departamento.nome)
+00708:     ).all()
+00709:     return templates.TemplateResponse(
+00710:         request=request,
+00711:         name='accounts.html',
+00712:         context={
+00713:             'current_user': user,
+00714:             'user': user,
+00715:             'accounts': accounts,
+00716:             'users': accounts,
+00717:             'system_users': accounts,
+00718:             'departments': departments,
+00719:             'error': None,
+00720:         },
+00721:     )
+00722: 
+00723: @router.post('/admin/contas')
+00724: def account_create(session: Db, user: Annotated[SystemUser, Depends(require_admin)], name: Annotated[str, Form()], username: Annotated[str, Form()], email: Annotated[str, Form()], password: Annotated[str, Form()], role: Annotated[str, Form()], department_id: Annotated[int | None, Form()] = None):
+00725:     if len(password) < 6: raise HTTPException(400, 'A senha precisa ter pelo menos 6 caracteres')
+00726:     if role not in {ROLE_ADMIN, ROLE_MANAGER, ROLE_ANALYST}: raise HTTPException(400, 'Papel invalido')
+00727:     if role == ROLE_MANAGER and not department_id: raise HTTPException(400, 'Gestor precisa de departamento')
+00728:     session.add(SystemUser(name=name.strip(), username=normalize_username(username), email=email.strip().lower(), password_hash=hash_password(password), role=role, department_id=department_id, active=True))
+00729:     session.commit(); return RedirectResponse('/admin/contas', status_code=303)
+00730: 
+00731: 
+00732: @router.post('/admin/propostas/{proposal_id}/{action}')
+00733: def proposal_review(proposal_id: int, action: str, session: Db, user: Annotated[SystemUser, Depends(require_admin)], details: Annotated[str, Form()] = ''):
+00734:     proposal = session.get(ProfileProposal, proposal_id)
+00735:     if not proposal: raise HTTPException(404, 'Proposta nao encontrada')
+00736:     mapping = {'aprovar': 'APROVADO', 'rejeitar': 'REJEITADO', 'devolver': 'DEVOLVIDO'}
+00737:     if action not in mapping: raise HTTPException(400, 'Acao invalida')
+00738:     proposal.workflow_status = mapping[action]; proposal.reviewed_by_id = user.id; proposal.reviewed_at = datetime.now(timezone.utc)
+00739:     if action == 'aprovar':
+00740:         proposal = session.scalar(select(ProfileProposal).options(selectinload(ProfileProposal.accesses)).where(ProfileProposal.id == proposal_id))
+00741:         if proposal.imported_result_profile_id is None:
+00742:             existing = session.scalar(select(Perfil).where(func.lower(Perfil.nome) == proposal.name.strip().lower()))
+00743:             if existing:
+00744:                 raise HTTPException(409, 'Ja existe um perfil com este nome')
+00745:             generated = Perfil(nome=proposal.name.strip(), situacao='Ativo', departamento_id=proposal.department_id, ultima_atualizacao=datetime.now(timezone.utc))
+00746:             session.add(generated)
+00747:             session.flush()
+00748:             for pa in proposal.accesses:
+00749:                 session.add(PerfilAcesso(perfil_id=generated.id, acesso_id=pa.access_id, status=pa.status or 'Permitido'))
+00750:             proposal.imported_result_profile_id = generated.id
+00751:         details = ((details.strip() + ' | ') if details.strip() else '') + 'Perfil gerado na proposta'
+00752: 
+00753:     create_history(session, proposal.id, user.id, mapping[action], details.strip() or None)
+00754:     session.commit(); return RedirectResponse(f'/portal/propostas/{proposal.id}', status_code=303)
+00755: 
+00756: 
+00757: # PROPOSAL_UI_V3 - integração corrigida, sem alterar login ou sessão
+00758: def proposal_for_user(session: Session, user: SystemUser, proposal_id: int):
+00759:     proposal=session.scalar(select(ProfileProposal).options(selectinload(ProfileProposal.department),selectinload(ProfileProposal.accesses).selectinload(ProfileProposalAccess.access)).where(ProfileProposal.id==proposal_id))
+00760:     if not proposal: raise HTTPException(404,'Proposta nao encontrada')
+00761:     enforce_department(user,proposal.department_id)
+00762:     return proposal
+00763: 
+00764: def proposal_can_edit(user: SystemUser, proposal: ProfileProposal):
+00765:     return proposal.created_by_id==user.id and proposal.workflow_status in {'RASCUNHO','DEVOLVIDO','REJEITADO'}
+00766: 
+00767: def proposal_can_delete(user: SystemUser, proposal: ProfileProposal):
+00768:     return proposal.created_by_id==user.id or user.role in {ROLE_ADMIN,ROLE_ANALYST}
+00769: 
+00770: @router.get('/portal/propostas/{proposal_id}/editar',response_class=HTMLResponse)
+00771: def proposal_edit_v3(request:Request,proposal_id:int,session:Db,user:Annotated[SystemUser,Depends(require_user)]):
+00772:     proposal=proposal_for_user(session,user,proposal_id)
+00773:     if not proposal_can_edit(user,proposal): raise HTTPException(403,'A proposta nao pode ser editada neste status')
+00774:     accesses=session.scalars(select(Acesso).order_by(Acesso.caminho_completo,Acesso.tela_final,Acesso.botao)).all()
+00775:     selected={item.access_id for item in proposal.accesses}
+00776:     return templates.TemplateResponse(request=request,name='proposal_edit.html',context={'user':user,'proposal':proposal,'accesses':accesses,'selected':selected})
+00777: 
+00778: @router.post('/portal/propostas/{proposal_id}/editar')
+00779: def proposal_update_v3(proposal_id:int,session:Db,user:Annotated[SystemUser,Depends(require_user)],name:Annotated[str,Form()],description:Annotated[str,Form()]='',justification:Annotated[str,Form()]='',access_ids:Annotated[list[int]|None,Form()]=None):
+00780:     proposal=proposal_for_user(session,user,proposal_id)
+00781:     if not proposal_can_edit(user,proposal): raise HTTPException(403,'A proposta nao pode ser editada neste status')
+00782:     proposal.name=name.strip(); proposal.description=description.strip() or None; proposal.justification=justification.strip() or None
+00783:     ids=set(access_ids or [])
+00784:     valid=set(session.scalars(select(Acesso.id).where(Acesso.id.in_(ids or {-1}))).all())
+00785:     proposal.accesses.clear(); session.flush()
+00786:     proposal.accesses.extend(ProfileProposalAccess(access_id=i,status='Permitido') for i in valid)
+00787:     create_history(session,proposal.id,user.id,'PROPOSTA_EDITADA',f'{len(valid)} acessos selecionados')
+00788:     session.commit(); return RedirectResponse(f'/portal/propostas/{proposal.id}',status_code=303)
+00789: 
+00790: @router.post('/portal/propostas/{proposal_id}/excluir')
+00791: def proposal_delete_v3(proposal_id:int,session:Db,user:Annotated[SystemUser,Depends(require_user)],reason:Annotated[str,Form()]=''):
+00792:     proposal=proposal_for_user(session,user,proposal_id)
+00793:     if not proposal_can_delete(user,proposal): raise HTTPException(403,'Sem permissao para excluir esta proposta')
+00794:     if len(reason.strip())<3: raise HTTPException(400,'Informe o motivo da exclusao')
+00795:     session.delete(proposal); session.commit()
+00796:     return RedirectResponse('/portal/propostas',status_code=303)
+00797: 
+00798: # PERFIS_PADRAO_PROPOSTA_V2
+00799: @router.get('/api/perfis/origens-proposta')
+00800: def proposal_profile_origins(session: Db, user: Annotated[SystemUser, Depends(require_user)]):
+00801:     ids = session.scalars(
+00802:         select(ProfileProposal.imported_result_profile_id).where(
+00803:             ProfileProposal.imported_result_profile_id.is_not(None)
+00804:         )
+00805:     ).all()
+00806:     return {'profile_ids': [int(value) for value in ids]}
+00807: 
+00808: 
+00809: @router.get('/api/perfis/{profile_id}/origem-proposta')
+00810: def proposal_profile_origin(profile_id: int, session: Db, user: Annotated[SystemUser, Depends(require_user)]):
+00811:     generated = session.scalar(
+00812:         select(func.count()).select_from(ProfileProposal).where(
+00813:             ProfileProposal.imported_result_profile_id == profile_id
+00814:         )
+00815:     )
+00816:     return {'generated': bool(generated), 'can_manage': user.role == ROLE_ADMIN}
+00817: 
+00818: 
+00819: @router.post('/perfis/{profile_id}/situacao')
+00820: def profile_status_update(profile_id: int, session: Db, user: Annotated[SystemUser, Depends(require_admin)], situacao: Annotated[str, Form()]):
+00821:     profile = session.get(Perfil, profile_id)
+00822:     if not profile:
+00823:         raise HTTPException(404, 'Perfil nao encontrado')
+00824:     generated = session.scalar(
+00825:         select(func.count()).select_from(ProfileProposal).where(
+00826:             ProfileProposal.imported_result_profile_id == profile_id
+00827:         )
+00828:     )
+00829:     if not generated:
+00830:         raise HTTPException(409, 'Somente perfis gerados em propostas podem ser inativados por esta acao')
+00831:     if situacao not in {'Ativo', 'Inativo'}:
+00832:         raise HTTPException(400, 'Situacao invalida')
+00833:     profile.situacao = situacao
+00834:     profile.ultima_atualizacao = datetime.now(timezone.utc)
+00835:     session.commit()
+00836:     return RedirectResponse(f'/perfis/{profile.id}', status_code=303)
+00837:
+
+==========================================================================================
+app\access_control_backup_lista_contas.py
+==========================================================================================
+
+...
+
+00060:     workflow_status: Mapped[str] = mapped_column(String(30), nullable=False, default='RASCUNHO')
+00061:     source_profile_id: Mapped[int | None] = mapped_column(ForeignKey('perfis.id'))
+00062:     source_employee_id: Mapped[int | None] = mapped_column(ForeignKey('funcionarios.id'))
+00063:     created_by_id: Mapped[int] = mapped_column(ForeignKey('system_users.id'), nullable=False)
+00064:     reviewed_by_id: Mapped[int | None] = mapped_column(ForeignKey('system_users.id'))
+00065:     imported_result_profile_id: Mapped[int | None] = mapped_column(ForeignKey('perfis.id'))
+00066:     version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+00067:     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+00068:     submitted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+00069:     reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+00070:     department: Mapped[Departamento] = relationship(foreign_keys=[department_id])
+00071:     source_profile: Mapped[Perfil | None] = relationship(foreign_keys=[source_profile_id])
+00072:     source_employee: Mapped[Funcionario | None] = relationship(foreign_keys=[source_employee_id])
+00073:     accesses: Mapped[list['ProfileProposalAccess']] = relationship(back_populates='proposal', cascade='all, delete-orphan')
+00074: 
+00075: 
+00076: class ProfileProposalAccess(Base):
+00077:     __tablename__ = 'profile_proposal_accesses'
+00078:     __table_args__ = (UniqueConstraint('proposal_id', 'access_id', name='uq_proposal_access'),)
+00079:     id: Mapped[int] = mapped_column(Integer, primary_key=True)
+00080:     proposal_id: Mapped[int] = mapped_column(ForeignKey('profile_proposals.id', ondelete='CASCADE'), index=True)
+00081:     access_id: Mapped[int] = mapped_column(ForeignKey('acessos.id'), index=True)
+00082:     status: Mapped[str] = mapped_column(String(30), nullable=False)
+00083:     proposal: Mapped[ProfileProposal] = relationship(back_populates='accesses')
+00084:     access: Mapped[Acesso] = relationship()
+00085: 
+00086: 
+00087: class ProposalHistory(Base):
+00088:     __tablename__ = 'proposal_history'
+00089:     id: Mapped[int] = mapped_column(Integer, primary_key=True)
+00090:     proposal_id: Mapped[int] = mapped_column(ForeignKey('profile_proposals.id', ondelete='CASCADE'), index=True)
+00091:     user_id: Mapped[int] = mapped_column(ForeignKey('system_users.id'))
+00092:     action: Mapped[str] = mapped_column(String(60), nullable=False)
+00093:     details: Mapped[str | None] = mapped_column(Text)
+00094:     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+00095: 
+00096: 
+00097: class LoginSession(Base):
+00098:     __tablename__ = 'login_sessions'
+00099:     id: Mapped[int] = mapped_column(Integer, primary_key=True)
+00100:     token_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+00101:     user_id: Mapped[int] = mapped_column(ForeignKey('system_users.id'), index=True)
+00102:     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+00103:     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+00104:     last_activity_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), index=True)
+00105:     user: Mapped[SystemUser] = relationship()
+00106: 
+00107: 
+00108: def create_tables():
+00109:     Base.metadata.create_all(bind=engine)
+00110: 
+00111: 
+00112: def safe_next_url(value: str | None) -> str:
+00113:     if not value:
+00114:         return '/portal'
+00115:     parsed = urlparse(value)
+00116:     if parsed.scheme or parsed.netloc or not value.startswith('/') or value.startswith('//'):
+00117:         return '/portal'
+00118:     return value
+00119: 
+
+...
+
+00610:     proposal.workflow_status = 'EM_REVISAO'; proposal.submitted_at = datetime.now(timezone.utc)
+00611:     create_history(session, proposal.id, user.id, 'ENVIADA_PARA_TI')
+00612:     session.commit(); return RedirectResponse(f'/portal/propostas/{proposal.id}', status_code=303)
+00613: 
+00614: 
+00615: @router.get('/portal/perfis', response_class=HTMLResponse)
+00616: def portal_profiles(request: Request, session: Db, user: Annotated[SystemUser, Depends(require_user)]):
+00617:     query = select(Perfil).order_by(Perfil.nome)
+00618:     if user.role == ROLE_MANAGER:
+00619:         query = query.where(Perfil.id.in_(profile_ids_for_department(session, user.department_id)))
+00620:     return templates.TemplateResponse(request=request, name='portal_profiles.html', context={'user': user, 'profiles': session.scalars(query).all()})
+00621: 
+00622: 
+00623: @router.get('/portal/perfis/{profile_id}', response_class=HTMLResponse)
+00624: def portal_profile_detail(request: Request, profile_id: int, session: Db, user: Annotated[SystemUser, Depends(require_user)]):
+00625:     profile = session.get(Perfil, profile_id)
+00626:     if not profile:
+00627:         raise HTTPException(404, 'Perfil nao encontrado')
+00628:     if user.role == ROLE_MANAGER:
+00629:         allowed = session.scalar(select(func.count()).select_from(FuncionarioPerfil).join(Funcionario).where(FuncionarioPerfil.perfil_id == profile_id, Funcionario.departamento_id == user.department_id))
+00630:         if not allowed:
+00631:             raise HTTPException(403, 'Perfil fora do departamento')
+00632:     return templates.TemplateResponse(request=request, name='portal_profile.html', context={'user': user, 'profile': profile})
+00633: 
+00634: 
+00635: @router.get('/admin/contas', response_class=HTMLResponse)
+00636: def accounts(request: Request, session: Db, user: Annotated[SystemUser, Depends(require_admin)]):
+00637:     users = session.scalars(select(SystemUser).options(selectinload(SystemUser.department)).order_by(SystemUser.name)).all()
+00638:     departments = session.scalars(select(Departamento).order_by(Departamento.nome)).all()
+00639:     return templates.TemplateResponse(request=request, name='accounts.html', context={'user': user, 'users': users, 'departments': departments})
+00640: 
+00641: 
+00642: @router.post('/admin/contas')
+00643: def account_create(session: Db, user: Annotated[SystemUser, Depends(require_admin)], name: Annotated[str, Form()], username: Annotated[str, Form()], email: Annotated[str, Form()], password: Annotated[str, Form()], role: Annotated[str, Form()], department_id: Annotated[int | None, Form()] = None):
+00644:     if role not in {ROLE_ADMIN, ROLE_MANAGER, ROLE_ANALYST}: raise HTTPException(400, 'Papel invalido')
+00645:     if role == ROLE_MANAGER and not department_id: raise HTTPException(400, 'Gestor precisa de departamento')
+00646:     session.add(SystemUser(name=name.strip(), username=normalize_username(username), email=email.strip().lower(), password_hash=hash_password(password), role=role, department_id=department_id, active=True))
+00647:     session.commit(); return RedirectResponse('/admin/contas', status_code=303)
+00648: 
+00649: 
+00650: @router.post('/admin/propostas/{proposal_id}/{action}')
+00651: def proposal_review(proposal_id: int, action: str, session: Db, user: Annotated[SystemUser, Depends(require_admin)], details: Annotated[str, Form()] = ''):
+00652:     proposal = session.get(ProfileProposal, proposal_id)
+00653:     if not proposal: raise HTTPException(404, 'Proposta nao encontrada')
+00654:     mapping = {'aprovar': 'APROVADO', 'rejeitar': 'REJEITADO', 'devolver': 'DEVOLVIDO'}
+00655:     if action not in mapping: raise HTTPException(400, 'Acao invalida')
+00656:     proposal.workflow_status = mapping[action]; proposal.reviewed_by_id = user.id; proposal.reviewed_at = datetime.now(timezone.utc)
+00657:     create_history(session, proposal.id, user.id, mapping[action], details.strip() or None)
+00658:     session.commit(); return RedirectResponse(f'/portal/propostas/{proposal.id}', status_code=303)
+
+==========================================================================================
+app\access_control_backup_loop.py
+==========================================================================================
+
+...
+
+00060:     workflow_status: Mapped[str] = mapped_column(String(30), nullable=False, default='RASCUNHO')
+00061:     source_profile_id: Mapped[int | None] = mapped_column(ForeignKey('perfis.id'))
+00062:     source_employee_id: Mapped[int | None] = mapped_column(ForeignKey('funcionarios.id'))
+00063:     created_by_id: Mapped[int] = mapped_column(ForeignKey('system_users.id'), nullable=False)
+00064:     reviewed_by_id: Mapped[int | None] = mapped_column(ForeignKey('system_users.id'))
+00065:     imported_result_profile_id: Mapped[int | None] = mapped_column(ForeignKey('perfis.id'))
+00066:     version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+00067:     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+00068:     submitted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+00069:     reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+00070:     department: Mapped[Departamento] = relationship(foreign_keys=[department_id])
+00071:     source_profile: Mapped[Perfil | None] = relationship(foreign_keys=[source_profile_id])
+00072:     source_employee: Mapped[Funcionario | None] = relationship(foreign_keys=[source_employee_id])
+00073:     accesses: Mapped[list['ProfileProposalAccess']] = relationship(back_populates='proposal', cascade='all, delete-orphan')
+00074: 
+00075: 
+00076: class ProfileProposalAccess(Base):
+00077:     __tablename__ = 'profile_proposal_accesses'
+00078:     __table_args__ = (UniqueConstraint('proposal_id', 'access_id', name='uq_proposal_access'),)
+00079:     id: Mapped[int] = mapped_column(Integer, primary_key=True)
+00080:     proposal_id: Mapped[int] = mapped_column(ForeignKey('profile_proposals.id', ondelete='CASCADE'), index=True)
+00081:     access_id: Mapped[int] = mapped_column(ForeignKey('acessos.id'), index=True)
+00082:     status: Mapped[str] = mapped_column(String(30), nullable=False)
+00083:     proposal: Mapped[ProfileProposal] = relationship(back_populates='accesses')
+00084:     access: Mapped[Acesso] = relationship()
+00085: 
+00086: 
+00087: class ProposalHistory(Base):
+00088:     __tablename__ = 'proposal_history'
+00089:     id: Mapped[int] = mapped_column(Integer, primary_key=True)
+00090:     proposal_id: Mapped[int] = mapped_column(ForeignKey('profile_proposals.id', ondelete='CASCADE'), index=True)
+00091:     user_id: Mapped[int] = mapped_column(ForeignKey('system_users.id'))
+00092:     action: Mapped[str] = mapped_column(String(60), nullable=False)
+00093:     details: Mapped[str | None] = mapped_column(Text)
+00094:     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+00095: 
+00096: 
+00097: class LoginSession(Base):
+00098:     __tablename__ = 'login_sessions'
+00099:     id: Mapped[int] = mapped_column(Integer, primary_key=True)
+00100:     token_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+00101:     user_id: Mapped[int] = mapped_column(ForeignKey('system_users.id'), index=True)
+00102:     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+00103:     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+00104:     last_activity_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), index=True)
+00105:     user: Mapped[SystemUser] = relationship()
+00106: 
+00107: 
+00108: def create_tables():
+00109:     Base.metadata.create_all(bind=engine)
+00110: 
+00111: 
+00112: def safe_next_url(value: str | None) -> str:
+00113:     if not value:
+00114:         return '/portal'
+00115:     parsed = urlparse(value)
+00116:     if parsed.scheme or parsed.netloc or not value.startswith('/') or value.startswith('//'):
+00117:         return '/portal'
+00118:     return value
+00119: 
+
+...
+
+00518:     proposal.workflow_status = 'EM_REVISAO'; proposal.submitted_at = datetime.now(timezone.utc)
+00519:     create_history(session, proposal.id, user.id, 'ENVIADA_PARA_TI')
+00520:     session.commit(); return RedirectResponse(f'/portal/propostas/{proposal.id}', status_code=303)
+00521: 
+00522: 
+00523: @router.get('/portal/perfis', response_class=HTMLResponse)
+00524: def portal_profiles(request: Request, session: Db, user: Annotated[SystemUser, Depends(require_user)]):
+00525:     query = select(Perfil).order_by(Perfil.nome)
+00526:     if user.role == ROLE_MANAGER:
+00527:         query = query.where(Perfil.id.in_(profile_ids_for_department(session, user.department_id)))
+00528:     return templates.TemplateResponse(request=request, name='portal_profiles.html', context={'user': user, 'profiles': session.scalars(query).all()})
+00529: 
+00530: 
+00531: @router.get('/portal/perfis/{profile_id}', response_class=HTMLResponse)
+00532: def portal_profile_detail(request: Request, profile_id: int, session: Db, user: Annotated[SystemUser, Depends(require_user)]):
+00533:     profile = session.get(Perfil, profile_id)
+00534:     if not profile:
+00535:         raise HTTPException(404, 'Perfil nao encontrado')
+00536:     if user.role == ROLE_MANAGER:
+00537:         allowed = session.scalar(select(func.count()).select_from(FuncionarioPerfil).join(Funcionario).where(FuncionarioPerfil.perfil_id == profile_id, Funcionario.departamento_id == user.department_id))
+00538:         if not allowed:
+00539:             raise HTTPException(403, 'Perfil fora do departamento')
+00540:     return templates.TemplateResponse(request=request, name='portal_profile.html', context={'user': user, 'profile': profile})
+00541: 
+00542: 
+00543: @router.get('/admin/contas', response_class=HTMLResponse)
+00544: def accounts(request: Request, session: Db, user: Annotated[SystemUser, Depends(require_admin)]):
+00545:     users = session.scalars(select(SystemUser).options(selectinload(SystemUser.department)).order_by(SystemUser.name)).all()
+00546:     departments = session.scalars(select(Departamento).order_by(Departamento.nome)).all()
+00547:     return templates.TemplateResponse(request=request, name='accounts.html', context={'user': user, 'users': users, 'departments': departments})
+00548: 
+00549: 
+00550: @router.post('/admin/contas')
+00551: def account_create(session: Db, user: Annotated[SystemUser, Depends(require_admin)], name: Annotated[str, Form()], username: Annotated[str, Form()], email: Annotated[str, Form()], password: Annotated[str, Form()], role: Annotated[str, Form()], department_id: Annotated[int | None, Form()] = None):
+00552:     if role not in {ROLE_ADMIN, ROLE_MANAGER, ROLE_ANALYST}: raise HTTPException(400, 'Papel invalido')
+00553:     if role == ROLE_MANAGER and not department_id: raise HTTPException(400, 'Gestor precisa de departamento')
+00554:     session.add(SystemUser(name=name.strip(), username=normalize_username(username), email=email.strip().lower(), password_hash=hash_password(password), role=role, department_id=department_id, active=True))
+00555:     session.commit(); return RedirectResponse('/admin/contas', status_code=303)
+00556: 
+00557: 
+00558: @router.post('/admin/propostas/{proposal_id}/{action}')
+00559: def proposal_review(proposal_id: int, action: str, session: Db, user: Annotated[SystemUser, Depends(require_admin)], details: Annotated[str, Form()] = ''):
+00560:     proposal = session.get(ProfileProposal, proposal_id)
+00561:     if not proposal: raise HTTPException(404, 'Proposta nao encontrada')
+00562:     mapping = {'aprovar': 'APROVADO', 'rejeitar': 'REJEITADO', 'devolver': 'DEVOLVIDO'}
+00563:     if action not in mapping: raise HTTPException(400, 'Acao invalida')
+00564:     proposal.workflow_status = mapping[action]; proposal.reviewed_by_id = user.id; proposal.reviewed_at = datetime.now(timezone.utc)
+00565:     create_history(session, proposal.id, user.id, mapping[action], details.strip() or None)
+00566:     session.commit(); return RedirectResponse(f'/portal/propostas/{proposal.id}', status_code=303)
+
+==========================================================================================
+app\templates\base_backup_navegacao.html
+==========================================================================================
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>{% block title %}Gestao de Acessos{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', path='/styles.css') }}">
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="/">Gestao de Acessos</a>
+  <nav><a href="/">Resumo</a><a href="/estrutura">Estrutura atual</a><a href="/perfis">Perfis atuais</a><a href="/comparar">Comparar perfis</a><a href="/docs">API</a></nav>
+</header>
+<main class="container">{% block content %}{% endblock %}</main>
+<script src="{{ url_for('static', path='/app.js') }}"></script>
+
+<script src="{{ url_for('static',path='/classic-tree.js') }}"></script></body>
+</html>
+
+==========================================================================================
+app\templates\perfil.html
+==========================================================================================
+{% extends "base.html" %}{% block title %}{{ perfil.nome }}
+<!-- PERFIS_PADRAO_PROPOSTA_V2 -->
+<section id="proposal-profile-actions" hidden>
+  <form method="post" action="/perfis/{{ perfil.id }}/situacao">
+    <input type="hidden" name="situacao" value="{{ 'Inativo' if perfil.situacao != 'Inativo' else 'Ativo' }}">
+    <button type="submit">{{ 'Inativar perfil' if perfil.situacao != 'Inativo' else 'Reativar perfil' }}</button>
+  </form>
+</section>
+<script>
+fetch('/api/perfis/{{ perfil.id }}/origem-proposta')
+ .then(response => response.ok ? response.json() : null)
+ .then(data => { if (data?.generated && data?.can_manage) document.getElementById('proposal-profile-actions').hidden = false; });
+</script>
+{% endblock %}{% block content %}<a class="back" href="/perfis">Voltar para perfis</a><section class="hero compact"><p class="eyebrow">Perfil</p><h1>{{ perfil.nome }}</h1><p>{{ usuarios|length }} usuarios vinculados</p></section><script type="application/json" id="classic-profile">{{ acessos|tojson }}</script>{% set source_id='classic-profile' %}{% set compare=false %}{% include '_classic_access.html' %}{% endblock %}
+
+==========================================================================================
+app\templates\perfis.html
+==========================================================================================
+{% extends "base.html" %}
+{% block title %}Perfis atuais{% endblock %}
+{% block content %}
+<section class="hero">
+  <p class="eyebrow">Consulta</p>
+  <h1>Perfis atuais</h1>
+  <p>Perfis importados, usuarios vinculados e quantidade de acessos.</p>
+</section>
+<form class="filters profiles-filter" method="get">
+  <input name="busca" value="{{ busca }}" placeholder="Pesquisar perfil">
+  <select name="situacao">
+    <option value="">Todas as situacoes</option>
+    {% for item in situacoes %}
+    <option value="{{ item }}" {% if item == situacao_selecionada %}selected{% endif %}>{{ item }}</option>
+    {% endfor %}
+  </select>
+  <button type="submit">Filtrar</button>
+  <a href="/perfis" class="secondary">Limpar</a>
+</form>
+<section class="profiles-grid">
+  {% for perfil, usuarios, acessos in linhas %}
+  <a class="profile-card" href="/perfis/{{ perfil.id }}">
+    <div class="profile-card-title">
+      <strong>{{ perfil.nome }}</strong>
+      <span class="status">{{ perfil.situacao }}</span>
+    </div>
+    <div class="profile-numbers">
+      <span><b>{{ usuarios }}</b> usuarios</span>
+      <span><b>{{ acessos }}</b> acessos</span>
+    </div>
+    <small>Atualizado: {{ perfil.ultima_atualizacao or 'Nao informado' }}</small>
+  </a>
+  {% else %}
+  <article class="panel">Nenhum perfil encontrado.</article>
+  {% endfor %}
+</section>
+{% endblock %}
+
+==========================================================================================
+app\templates\portal_employee.html
+==========================================================================================
+{% extends "base.html" %}{% block title %}{{ employee.nome }}{% endblock %}{% block content %}<a class="back" href="/portal/funcionarios">Voltar para usuarios</a><section class="hero compact"><p class="eyebrow">Usuario do departamento</p><h1>{{ employee.nome }}</h1><p>{{ employee.login }} · {{ employee.departamento.nome }}</p></section><section class="panel"><h2>Perfis vinculados</h2><div class="chips">{% for link in employee.perfis %}<a href="/portal/perfis/{{ link.perfil.id }}">{{ link.perfil.nome }}</a>{% else %}<span>Nenhum perfil vinculado.</span>{% endfor %}</div></section><section class="panel"><p>Para consultar a arvore consolidada deste usuario, use a visualizacao integrada abaixo.</p><a class="button" href="/funcionarios/{{ employee.id }}">Abrir arvore de acessos</a></section>{% endblock %}
+
+==========================================================================================
+app\templates\portal_profile.html
+==========================================================================================
+{% extends "base.html" %}{% block title %}{{profile.nome}}
+<section class="profile-status-actions">
+  {% if user.role in ['ADMIN_TI', 'ADMIN'] %}
+  <form method="post" action="/perfis/{{ profile.id }}/situacao">
+    <input type="hidden" name="situacao" value="{{ 'Inativo' if profile.situacao != 'Inativo' else 'Ativo' }}">
+    <button type="submit">{{ 'Inativar perfil' if profile.situacao != 'Inativo' else 'Reativar perfil' }}</button>
+  </form>
+  {% endif %}
+</section>
+{% endblock %}{% block content %}<section class="page-header"><div><a href="/perfis">← Voltar para perfis</a><h1>{{profile.nome}}</h1><p>{{profile.situacao}} · {% if generated_proposal %}Gerado na proposta #{{generated_proposal.id}}{% else %}Importado do ERP{% endif %}</p></div>{% if is_admin %}<form method="post" action="/portal/perfis/{{profile.id}}/situacao"><input type="hidden" name="situacao" value="{{'Inativo' if profile.situacao!='Inativo' else 'Ativo'}}"><button>{{'Inativar perfil' if profile.situacao!='Inativo' else 'Reativar perfil'}}</button></form>{% endif %}</section><section><h2>Árvore de acessos</h2>{% set ns=namespace(path='',screen='',po=false,so=false) %}{% for item in accesses %}{% set a=item.acesso %}{% if ns.path!=a.caminho_completo %}{% if ns.so %}</ul></details>{% set ns.so=false %}{% endif %}{% if ns.po %}</div></details>{% endif %}<details open><summary><strong>{{a.caminho_completo}}</strong></summary><div>{% set ns.path=a.caminho_completo %}{% set ns.screen='' %}{% set ns.po=true %}{% endif %}{% if ns.screen!=a.tela_final %}{% if ns.so %}</ul></details>{% endif %}<details open><summary>{{a.tela_final}}</summary><ul>{% set ns.screen=a.tela_final %}{% set ns.so=true %}{% endif %}<li>{{a.botao}} <small>({{item.status}})</small></li>{% else %}<p>Sem acessos.</p>{% endfor %}{% if ns.so %}</ul></details>{% endif %}{% if ns.po %}</div></details>{% endif %}</section>{% endblock %}
+
+==========================================================================================
+app\templates\portal_profiles.html
+==========================================================================================
+{% extends "base.html" %}
+{% block title %}Perfis | Gestão de Acessos
+<!-- PERFIS_PADRAO_PROPOSTA_V2 -->
+<script>
+document.addEventListener('DOMContentLoaded', async () => {
+  const response = await fetch('/api/perfis/origens-proposta');
+  if (!response.ok) return;
+  const data = await response.json();
+  const generatedIds = new Set((data.profile_ids || []).map(String));
+  const links = [...document.querySelectorAll('a[href^="/perfis/"]')];
+  const cards = [];
+  for (const link of links) {
+    const match = link.getAttribute('href').match(/^\/perfis\/(\d+)$/);
+    if (!match) continue;
+    const card = link.closest('[class*="card"], article, li') || link;
+    card.dataset.profileOrigin = generatedIds.has(match[1]) ? 'proposal' : 'erp';
+    if (generatedIds.has(match[1]) && !card.textContent.includes('Gerado na proposta')) {
+      const label = document.createElement('small');
+      label.textContent = 'Gerado na proposta';
+      label.style.display = 'block';
+      card.appendChild(label);
+    }
+    cards.push(card);
+  }
+  const originalForm = document.querySelector('form');
+  if (!originalForm || document.getElementById('profile-origin-filter')) return;
+  const wrapper = document.createElement('label');
+  wrapper.innerHTML = 'Origem <select id="profile-origin-filter"><option value="all">Todos os perfis</option><option value="proposal">Gerados em proposta</option><option value="erp">Importados do ERP</option></select>';
+  originalForm.insertBefore(wrapper, originalForm.lastElementChild);
+  wrapper.querySelector('select').addEventListener('change', event => {
+    cards.forEach(card => card.hidden = event.target.value !== 'all' && card.dataset.profileOrigin !== event.target.value);
+  });
+});
+</script>
+{% endblock %}
+{% block content %}
+<section class="hero compact"><p class="eyebrow">Perfis importados do ERP</p><h1>Perfis</h1><p>{% if user.department %}Perfis utilizados por funcionários de {{ user.department.nome }}.{% else %}Todos os perfis disponíveis para T.I.{% endif %}</p></section>
+<form method="get" class="directory-filters">
+<label>Pesquisar por nome<input type="search" name="nome" value="{{ filter_name }}" placeholder="Digite o nome do perfil"></label>
+{% if show_department_filter %}<label>Departamento<select name="departamento_id"><option value="">Todos os departamentos</option>{% for d in departments %}<option value="{{ d.id }}" {% if filter_department_id == d.id %}selected{% endif %}>{{ d.nome }}</option>{% endfor %}</select></label>{% endif %}
+<div class="filter-actions"><button type="submit">Filtrar</button><a href="/perfis">Limpar</a></div>
+</form>
+<p class="filter-result">{{ profiles|length }} perfil(is) encontrado(s).</p>
+<section class="people-grid">{% for p in profiles %}<a class="person-card" href="/perfis/{{ p.id }}"><strong>{{ p.nome }}</strong><span>{{ p.situacao }}</span><small>{% if filter_department_id %}Utilizado no departamento selecionado{% else %}Importado do ERP{% endif %}</small></a>{% else %}<article class="panel">Nenhum perfil encontrado com os filtros informados.</article>{% endfor %}</section>
+{% endblock %}
+
+==========================================================================================
+app\static\app.css
+==========================================================================================
+.card{background:white;border:1px solid var(--line);border-radius:10px;padding:18px}
+
+.tree,.tree ul{list-style:none;padding-left:20px}
+
+.tree{padding-left:0}
+
+==========================================================================================
+app\static\portal.css
+==========================================================================================
+.metrics article,.form-card,.list,.cards a{background:#fff;border:1px solid #d7e0e8;border-radius:10px;padding:16px}
+
+.metrics span,.cards span,.cards small,.list span{display:block;color:#667085}
+
+.cards{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+
+.cards a{color:#172033;text-decoration:none}
+
+.form-card{display:grid;gap:12px;max-width:850px}
+
+.form-card label{display:grid;gap:5px}
+
+.form-card input,.form-card select,.form-card textarea{padding:9px;border:1px solid #aebdca;border-radius:6px}
+
+.form-card textarea{min-height:80px}
+
+.form-card.compact{grid-template-columns:repeat(3,1fr);max-width:none}
+
+.login-card{width:min(420px,92vw);display:grid;gap:12px;padding:28px;background:#fff;border-radius:12px}
+
+.login-card label{display:grid;gap:5px}
+
+.login-card input{padding:10px;border:1px solid #aebdca;border-radius:6px}
+
+.cards,.metrics,.review,.form-card.compact{grid-template-columns:1fr}
+
+==========================================================================================
+app\static\proposal-access-editor.css
+==========================================================================================
+.pae-tree-panel,.pae-actions-panel{margin:7px;padding:0;border:1px solid var(--pae-border);min-width:0}
+
+.pae-tree-panel{margin-right:0}
+
+.pae-tree-panel legend,.pae-actions-panel legend{padding:0 6px;font-weight:600}
+
+.pae-tree{height:535px;overflow:auto;padding:7px 9px 16px}
+
+.pae-tree-panel,.pae-actions-panel{margin:7px}
+
+.pae-tree{height:380px}
+
+==========================================================================================
+app\static\proposal-editor.css
+==========================================================================================
+.proposal-editor__tree{height:535px;overflow:auto;padding:8px}
+
+.proposal-editor__tree{height:380px}
+
+
+
+/* CORRECAO_GLOBAL_TEXTOS_ARVORES_PRETO_V1 */
+/* Nomes das arvores: propostas, usuarios e perfis */
+:is(
+  .tree,
+  .access-tree,
+  .permissions-tree,
+  .profile-tree,
+  .profile-access-editor,
+  .profile-tree-column,
+  .profile-tree-scroll,
+  .profile-path-node,
+  .profile-screen-row,
+  .profile-button-group,
+  .user-tree,
+  .user-access-tree,
+  [data-access-editor],
+  [data-tree],
+  [data-path-node]
+) :is(
+  summary,
+  label,
+  .tree-label,
+  .tree-name,
+  .tree-title,
+  .tree-node-name,
+  .tree-folder-name,
+  .path-name,
+  .screen-name,
+  .button-name,
+  .profile-column-title,
+  .profile-screen-name,
+  .profile-path-name,
+  .profile-button-row,
+  .profile-screen-row
+) {
+  color: #000000 !important;
+}
+
+
+
+/* Texto direto nos nós, sem alterar ícones ou fundos */
+:is(
+  .profile-path-node > summary,
+  .profile-screen-row,
+  .profile-button-row,
+  .tree-node > summary,
+  .tree-node > label,
+  .access-tree details > summary,
+  .permissions-tree details > summary,
+  .user-access-tree details > summary
+) {
+  color: #000000 !important;
+}
+
+==========================================================================================
+app\static\proposals.css
+==========================================================================================
+.profile-access-editor{display:grid;gap:10px}
+
+.profile-tree-toolbar{display:flex;justify-content:space-between;gap:14px;align-items:center}
+
+.profile-view-buttons{display:flex;gap:6px}
+
+.profile-tree-toolbar>input{width:min(420px,46%);padding:9px;border:1px solid #aebdca;border-radius:5px}
+
+.profile-tree-grid{display:grid;grid-template-columns:minmax(520px,1.55fr) minmax(340px,.95fr);border:1px solid #cbd5e1;background:#fff;min-height:570px}
+
+.profile-tree-column{border-right:1px solid #cbd5e1;min-width:0}
+
+.profile-column-title{font-weight:700;padding:9px 10px;border-bottom:1px solid #cbd5e1;background:#f8fafc}
+
+.profile-tree-scroll,.profile-buttons-scroll{height:570px;overflow:auto;padding:8px}
+
+.profile-path-node{padding:2px 0}
+
+.profile-path-node>summary{list-style:none;display:flex;align-items:center;gap:6px;padding:5px;cursor:pointer}
+
+.profile-path-node>summary::-webkit-details-marker{display:none}
+
+.tree-expander{display:inline-grid;place-items:center;width:14px;height:14px;border:1px solid #8b98a5;font-size:11px}
+
+.tree-folder{font-size:15px}
+
+.profile-screen-list{margin-left:18px;padding-left:14px;border-left:1px dotted #9aa8b6}
+
+.profile-screen-row{width:100%;display:grid;grid-template-columns:24px 1fr 34px;align-items:center;gap:4px;border:0;background:transparent;color:#172033;text-align:left;padding:7px 8px;border-radius:4px;cursor:pointer}
+
+.profile-screen-row:hover,.profile-screen-row.active{background:#dcecff}
+
+.profile-access-hint{padding:12px;color:#65758b}
+
+.profile-button-group{display:grid}
+
+.profile-select-screen{display:flex;align-items:center;gap:9px;border:0;border-bottom:1px solid #dfe5eb;background:#f8fafc;color:#172033;text-align:left;padding:10px;cursor:pointer;font-weight:700}
+
+.profile-select-screen [data-select-screen-icon]{font-size:22px;color:#e12b25}
+
+.profile-select-screen [data-select-screen-icon].allowed{color:#00a33c}
+
+.profile-button-row{display:grid;grid-template-columns:18px 25px 1fr auto;align-items:center;gap:4px;padding:7px 5px;border-bottom:1px solid #edf0f2}
+
+.proposal-meta-grid,.profile-tree-grid{grid-template-columns:1fr!important}
+
+.profile-tree-column{border-right:0;border-bottom:1px solid #cbd5e1}
+
+.profile-tree-toolbar{align-items:stretch;flex-direction:column}
+
+.profile-tree-toolbar>input{width:100%}
+
+==========================================================================================
+app\static\styles.css
+==========================================================================================
+.cards{display:grid;grid-template-columns:repeat(5,minmax(130px,1fr));gap:14px}
+
+.cards article,.panel{background:white;border:1px solid #d7e1eb;border-radius:12px;box-shadow:0 4px 16px rgba(23,54,93,.06)}
+
+.cards article{padding:18px}
+
+.cards span{display:block;color:#667085;font-size:13px}
+
+.cards strong{display:block;margin-top:7px;font-size:30px;color:#17365d}
+
+.person-card{display:flex;flex-direction:column;gap:5px;padding:14px;border:1px solid #d9e3ec;border-radius:10px;text-decoration:none;color:#172033;background:#fbfcfe}
+
+.person-card:hover{border-color:#1f4e78}
+
+.person-card span,.person-card small{color:#667085}
+
+.profile-layout{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+
+.cards{grid-template-columns:repeat(2,1fr)}
+
+.filters,.profile-layout{grid-template-columns:1fr}
+
+
+.profiles-grid{display:grid;grid-template-columns:repeat(3,minmax(240px,1fr));gap:14px}
+
+.profile-card{display:block;padding:17px;background:#fff;border:1px solid #d7e1eb;border-radius:12px;color:#172033;text-decoration:none;box-shadow:0 4px 16px rgba(23,54,93,.05)}
+
+.profile-card:hover{border-color:#1f4e78;transform:translateY(-1px)}
+
+.profile-card-title{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
+
+.profile-card-title strong{font-size:17px}
+
+.profile-numbers{display:flex;gap:22px;margin:18px 0}
+
+.profile-numbers span{color:#667085}
+
+.profile-numbers b{display:block;font-size:24px;color:#17365d}
+
+.profile-card small{color:#667085}
+
+.profiles-filter{grid-template-columns:2fr 1fr auto auto}
+
+.profiles-grid{grid-template-columns:1fr}
+
+.profiles-filter{grid-template-columns:1fr}
+
+
+
+.access-tree{display:flex;flex-direction:column;gap:8px;margin-top:12px}
+
+.classic-modes button,.profile-tabs button{border:1px solid #bac5cf;background:#f6f7f8;color:#243447;border-radius:4px;padding:7px 11px;cursor:pointer}
+
+.classic-modes button.active,.profile-tabs button.active{background:#dbeafe;border-color:#7ca8d4;color:#12375f}
+
+.classic-tree,.classic-accesses{height:560px;overflow:auto;padding:8px 10px;font-size:13px}
+
+.profile-tabs{display:flex;gap:5px;flex-wrap:wrap;margin:10px 0}
+
+.profile-panel{display:none}
+
+.profile-panel.active{display:block}
+
+.compare-tree{padding:8px 10px;max-height:660px;overflow:auto}
+
+.classic-comparison[data-mode="paths"] .compare-tree{display:none}
+
+.classic-tree,.classic-accesses{height:auto;max-height:480px}
+
+.compare-cards{display:grid;grid-template-columns:repeat(5,minmax(150px,1fr));gap:10px;margin-bottom:14px}
+
+.compare-cards article{padding:13px;background:#fff;border:1px solid #d7e0e8;border-left:4px solid #98a2b3;border-radius:8px}
+
+.compare-cards span{display:block;color:#667085;font-size:12px}
+
+.compare-cards strong{font-size:27px}
+
+.compare-cards .equal{border-left-color:#15803d}
+
+.compare-cards .different{border-left-color:#d97706}
+
+.compare-cards .only-a{border-left-color:#2563eb}
+
+.compare-cards .only-b{border-left-color:#7c3aed}
+
+.comparison-tree,.comparison-paths{max-height:680px;overflow:auto;padding:8px}
+
+.aligned-comparison[data-view="paths"] .comparison-tree{display:none}
+
+.compare-cards{grid-template-columns:repeat(2,1fr)}
+
+.compare-cards{grid-template-columns:1fr}
+
+.auth-card{width:min(430px,94vw);display:grid;gap:14px;padding:30px;background:#fff;border:1px solid #d7e0e8;border-radius:14px;box-shadow:0 18px 50px rgba(18,55,95,.16)}
+
+.auth-card h1,.auth-card p{margin:0}
+
+.auth-card label{display:grid;gap:6px}
+
+.auth-card input,.integrated-form input,.integrated-form select,.integrated-form textarea,.account-form input,.account-form select{padding:10px;border:1px solid #aebdca;border-radius:7px}
+
+.auth-card small{color:#667085}
+
+
+
+/* CORRECAO_GLOBAL_TEXTOS_ARVORES_PRETO_V1 */
+/* Nomes das arvores: propostas, usuarios e perfis */
+:is(
+  .tree,
+  .access-tree,
+  .permissions-tree,
+  .profile-tree,
+  .profile-access-editor,
+  .profile-tree-column,
+  .profile-tree-scroll,
+  .profile-path-node,
+  .profile-screen-row,
+  .profile-button-group,
+  .user-tree,
+  .user-access-tree,
+  [data-access-editor],
+  [data-tree],
+  [data-path-node]
+) :is(
+  summary,
+  label,
+  .tree-label,
+  .tree-name,
+  .tree-title,
+  .tree-node-name,
+  .tree-folder-name,
+  .path-name,
+  .screen-name,
+  .button-name,
+  .profile-column-title,
+  .profile-screen-name,
+  .profile-path-name,
+  .profile-button-row,
+  .profile-screen-row
+) {
+  color: #000000 !important;
+}
+
+
+
+/* Texto direto nos nós, sem alterar ícones ou fundos */
+:is(
+  .profile-path-node > summary,
+  .profile-screen-row,
+  .profile-button-row,
+  .tree-node > summary,
+  .tree-node > label,
+  .access-tree details > summary,
+  .permissions-tree details > summary,
+  .user-access-tree details > summary
+) {
+  color: #000000 !important;
+}
+
+==========================================================================================
+app\static\styles_backup_comparacao.css
+==========================================================================================
+.cards{display:grid;grid-template-columns:repeat(5,minmax(130px,1fr));gap:14px}
+
+.cards article,.panel{background:white;border:1px solid #d7e1eb;border-radius:12px;box-shadow:0 4px 16px rgba(23,54,93,.06)}
+
+.cards article{padding:18px}
+
+.cards span{display:block;color:#667085;font-size:13px}
+
+.cards strong{display:block;margin-top:7px;font-size:30px;color:#17365d}
+
+.person-card{display:flex;flex-direction:column;gap:5px;padding:14px;border:1px solid #d9e3ec;border-radius:10px;text-decoration:none;color:#172033;background:#fbfcfe}
+
+.person-card:hover{border-color:#1f4e78}
+
+.person-card span,.person-card small{color:#667085}
+
+.profile-layout{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+
+.cards{grid-template-columns:repeat(2,1fr)}
+
+.filters,.profile-layout{grid-template-columns:1fr}
+
+
+.profiles-grid{display:grid;grid-template-columns:repeat(3,minmax(240px,1fr));gap:14px}
+
+.profile-card{display:block;padding:17px;background:#fff;border:1px solid #d7e1eb;border-radius:12px;color:#172033;text-decoration:none;box-shadow:0 4px 16px rgba(23,54,93,.05)}
+
+.profile-card:hover{border-color:#1f4e78;transform:translateY(-1px)}
+
+.profile-card-title{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
+
+.profile-card-title strong{font-size:17px}
+
+.profile-numbers{display:flex;gap:22px;margin:18px 0}
+
+.profile-numbers span{color:#667085}
+
+.profile-numbers b{display:block;font-size:24px;color:#17365d}
+
+.profile-card small{color:#667085}
+
+.profiles-filter{grid-template-columns:2fr 1fr auto auto}
+
+.profiles-grid{grid-template-columns:1fr}
+
+.profiles-filter{grid-template-columns:1fr}
+
+
+
+.access-tree{display:flex;flex-direction:column;gap:8px;margin-top:12px}
+
+.classic-modes button,.profile-tabs button{border:1px solid #bac5cf;background:#f6f7f8;color:#243447;border-radius:4px;padding:7px 11px;cursor:pointer}
+
+.classic-modes button.active,.profile-tabs button.active{background:#dbeafe;border-color:#7ca8d4;color:#12375f}
+
+.classic-tree,.classic-accesses{height:560px;overflow:auto;padding:8px 10px;font-size:13px}
+
+.profile-tabs{display:flex;gap:5px;flex-wrap:wrap;margin:10px 0}
+
+.profile-panel{display:none}
+
+.profile-panel.active{display:block}
+
+.compare-tree{padding:8px 10px;max-height:660px;overflow:auto}
+
+.classic-comparison[data-mode="paths"] .compare-tree{display:none}
+
+.classic-tree,.classic-accesses{height:auto;max-height:480px}

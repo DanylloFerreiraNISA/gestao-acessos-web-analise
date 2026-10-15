@@ -1,16 +1,1 @@
-{% extends "base.html" %}
-{% block title %}{{ funcionario.nome }}{% endblock %}
-{% block content %}
-<a class="back" href="/estrutura">Voltar para estrutura atual</a>
-<section class="hero compact"><p class="eyebrow">Funcionario</p><h1>{{ funcionario.nome }}</h1><p>{{ funcionario.login }} | {{ funcionario.departamento.nome if funcionario.departamento else 'Departamento nao definido' }}</p></section>
-<section class="profile-layout">
-  <article class="panel"><h2>Perfis vinculados</h2><div class="chips">{% for vinculo in funcionario.perfis %}<span>{{ vinculo.perfil.nome }}</span>{% else %}<p>Nenhum perfil vinculado.</p>{% endfor %}</div></article>
-  <article class="panel"><h2>Consolidado</h2><div class="stats"><span><b>{{ acessos|selectattr('status','equalto','Permitido')|list|length }}</b> Permitidos</span><span><b>{{ acessos|selectattr('status','equalto','Negado')|list|length }}</b> Negados</span><span><b>{{ acessos|length }}</b> Total</span></div></article>
-</section>
-<section class="panel">
-  <div class="panel-title"><h2>Acessos consolidados</h2><input type="search" placeholder="Pesquisar acesso" data-filter="access-table"></div>
-  <div class="table-wrap"><table id="access-table"><thead><tr><th>Botao</th><th>Tela</th><th>Caminho</th><th>Status</th></tr></thead><tbody>
-  {% for acesso in acessos %}<tr><td>{{ acesso.botao }}</td><td>{{ acesso.tela }}</td><td>{{ acesso.caminho }}</td><td><span class="status {{ acesso.status|lower|replace(' ','-') }}">{{ acesso.status }}</span></td></tr>{% else %}<tr><td colspan="4">Nenhum acesso disponível.</td></tr>{% endfor %}
-  </tbody></table></div>
-</section>
-{% endblock %}
+{% extends "base.html" %}{% block title %}{{ funcionario.nome }}{% endblock %}{% block content %}<a class="back" href="/estrutura">Voltar para usuarios</a><section class="hero compact"><p class="eyebrow">Usuario</p><h1>{{ funcionario.nome }}</h1><p>{{ funcionario.login }} | {{ funcionario.departamento.nome if funcionario.departamento else 'Departamento nao definido' }}</p></section><div class="employee-page-actions"><a class="button" href="/portal/funcionarios/{{ funcionario.id }}/editar">Editar funcionario</a></div><div class="profile-tabs" data-profile-tabs="userProfiles"><button class="active" data-profile-tab="consolidado">Consolidado</button>{% for item in por_perfil %}<button data-profile-tab="perfil-{{ item.perfil.id }}">{{ item.perfil.nome }}</button>{% endfor %}</div><section id="consolidado" class="profile-panel active" data-profile-panel="userProfiles"><div class="consolidated-rule">Se qualquer perfil permitir, o resultado consolidado será <b>Permitido</b>.</div><script type="application/json" id="classic-consolidado">{{ consolidado|tojson }}</script>{% set source_id='classic-consolidado' %}{% set compare=false %}{% include '_classic_access.html' %}</section>{% for item in por_perfil %}<section id="perfil-{{ item.perfil.id }}" class="profile-panel" data-profile-panel="userProfiles"><script type="application/json" id="classic-perfil-{{ item.perfil.id }}">{{ item.acessos|tojson }}</script>{% set source_id='classic-perfil-' ~ item.perfil.id %}{% set compare=false %}{% include '_classic_access.html' %}</section>{% endfor %}{% endblock %}

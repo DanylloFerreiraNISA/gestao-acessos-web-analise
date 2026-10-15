@@ -1,0 +1,8 @@
+{% extends "base.html" %}
+{% block title %}Propostas | Gestão de Acessos{% endblock %}
+{% block head %}<link rel="stylesheet" href="{{ url_for('static', path='/proposals.css') }}">{% endblock %}
+{% block content %}
+<div class="title-row"><div><h1>Propostas</h1><p class="proposal-muted">Solicitações de alteração de acesso.</p></div><a class="primary" href="/portal/propostas/nova">Nova proposta</a></div><section class="proposal-list">{% for p in proposals %}<article class="proposal-item"><div><span class="proposal-status s-{{ p.workflow_status|lower }}">{{ p.workflow_status|replace('_',' ') }}</span><h3><a href="/portal/propostas/{{ p.id }}">{{ p.name }}</a></h3><p>{{ p.department.nome }} · {{ p.origin|replace('_',' ') }}</p></div><div class="proposal-actions"><a href="/portal/propostas/{{ p.id }}">Visualizar</a>{% if p.created_by_id == user.id and p.workflow_status in ['RASCUNHO','DEVOLVIDO','REJEITADO'] %}<a href="/portal/propostas/{{ p.id }}/editar">Editar</a>{% endif %}<button type="button" class="proposal-link danger" data-delete="{{ p.id }}" data-name="{{ p.name }}">Excluir</button></div></article>{% else %}<div class="proposal-empty"><b>Nenhuma proposta encontrada.</b><p>Crie uma proposta para começar.</p></div>{% endfor %}</section>
+{% include '_proposal_delete_dialog.html' %}
+{% endblock %}
+{% block scripts %}<script src="{{ url_for('static', path='/proposals.js') }}"></script>{% endblock %}

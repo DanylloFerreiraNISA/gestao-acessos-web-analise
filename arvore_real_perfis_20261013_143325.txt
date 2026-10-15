@@ -1,0 +1,1413 @@
+COLETA SOMENTE LEITURA - ARVORE REAL DE PERFIS
+Nenhum arquivo do sistema foi modificado.
+
+===== INICIO app/templates/perfil.html =====
+{% extends "base.html" %}{% block title %}{{ perfil.nome }}{% endblock %}{% block content %}<a class="back" href="/perfis">Voltar para perfis</a><section class="hero compact"><p class="eyebrow">Perfil</p><h1>{{ perfil.nome }}</h1><p>{{ usuarios|length }} usuarios vinculados</p></section><script type="application/json" id="classic-profile">{{ acessos|tojson }}</script>{% set source_id='classic-profile' %}{% set compare=false %}{% include '_classic_access.html' %}{% endblock %}
+===== FIM app/templates/perfil.html =====
+
+===== INICIO app/templates/portal_profile.html =====
+{% extends "base.html" %}{% block title %}{{ profile.nome }}{% endblock %}{% block content %}<a class="back" href="/portal/perfis">Voltar para perfis</a><section class="hero compact"><p class="eyebrow">Perfil importado do ERP</p><h1>{{ profile.nome }}</h1><p>{{ profile.situacao }}</p></section><section class="panel"><p>Este perfil e somente leitura no portal. Alteracoes devem ser feitas por uma proposta.</p><a class="button" href="/perfis/{{ profile.id }}">Abrir arvore de acessos</a></section>{% endblock %}
+===== FIM app/templates/portal_profile.html =====
+
+===== INICIO app/templates/base.html =====
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>{% block title %}Gestao de Acessos{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', path='/styles.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', path='/portal.css') }}">
+  {% block head %}{% endblock %}
+</head>
+<body>
+{% set current_user = user if user is defined and user else request.state.current_user if request.state.current_user is defined else none %}
+<header class="topbar">
+  <a class="brand" href="{{ '/portal' if current_user else '/login' }}">Gestao de Acessos</a>
+  <nav>
+    {% if current_user %}
+      <a href="/portal">Inicio</a>
+      <a href="/portal/funcionarios">Usuarios</a>
+      <a href="/portal/perfis">Perfis</a>
+      <a href="/portal/propostas">Propostas</a>
+      {% if current_user.role in ['ADMIN_TI','ANALISTA_TI'] %}
+        <a href="/comparar">Comparar</a>
+        <a href="/admin/contas">Contas</a>
+      {% endif %}
+      <span class="nav-scope">{{ current_user.department.nome if current_user.department else 'T.I. - Todos os departamentos' }}</span>
+      <form action="/logout" method="post" class="logout-form"><button type="submit">Sair</button></form>
+    {% else %}
+      <a href="/login">Entrar</a>
+    {% endif %}
+  </nav>
+</header>
+<main class="container">{% block content %}{% endblock %}</main>
+<script src="{{ url_for('static', path='/classic-tree.js') }}"></script>
+<script src="{{ url_for('static', path='/comparison.js') }}"></script>
+{% if current_user %}<script src="{{ url_for('static', path='/session-activity.js') }}"></script>{% endif %}
+{% block scripts %}{% endblock %}
+</body>
+</html>
+
+===== FIM app/templates/base.html =====
+
+===== INICIO app/templates/proposal_new.html =====
+{% extends "base.html" %}
+{% block title %}Nova proposta | Gestão de Acessos{% endblock %}
+{% block head %}<link rel="stylesheet" href="{{ url_for('static', path='/proposals.css') }}">{% endblock %}
+{% block content %}
+<a class="back" href="/portal/propostas">Voltar</a>
+<section class="hero compact">
+  <p class="eyebrow">Solicitação de acesso</p>
+  <h1>Nova proposta</h1>
+  <p>Escolha a base e ajuste as telas e os botões antes de criar.</p>
+</section>
+<form method="post" id="proposalCreateForm" class="proposal-workspace">
+  <input type="hidden" name="access_selection_present" value="1">
+  <section class="form-card proposal-meta-grid">
+    <label>Nome<input name="name" required maxlength="180"></label>
+    <label>Departamento<select name="department_id" required>{% for d in departments %}<option value="{{ d.id }}">{{ d.nome }}</option>{% endfor %}</select></label>
+    <label>Base da proposta<select name="origin" id="origin" required><option value="COPIADO_DE_PERFIL">Copiar perfil</option><option value="CONSOLIDADO_FUNCIONARIO">Consolidado de funcionário</option></select></label>
+    <label data-source="profile">Perfil base<select name="source_profile_id" id="sourceProfile" required><option value="">Selecione o perfil</option>{% for p in profiles %}<option value="{{ p.id }}">{{ p.nome }}</option>{% endfor %}</select></label>
+    <label data-source="employee" class="hidden-source">Funcionário base<select name="source_employee_id" id="sourceEmployee"><option value="">Selecione o funcionário</option>{% for e in employees %}<option value="{{ e.id }}">{{ e.nome }}</option>{% endfor %}</select></label>
+    <label class="span-2">Descrição<textarea name="description"></textarea></label>
+    <label class="span-2">Justificativa<textarea name="justification"></textarea></label>
+  </section>
+  <div id="baseNote" class="proposal-base-note">Selecione o perfil. Somente os acessos permitidos começarão marcados.</div>
+  <section class="profile-access-editor" data-access-editor>
+  <div class="profile-tree-toolbar">
+    <div class="profile-view-buttons">
+      <button type="button" class="view-button active">Árvore de acessos</button>
+      <button type="button" class="view-button" data-only-selected-button>Somente selecionados</button>
+    </div>
+    <input type="search" data-tree-search placeholder="Pesquisar caminho, tela ou botão">
+  </div>
+
+  <div class="profile-tree-grid">
+    <section class="profile-tree-column">
+      <header class="profile-column-title">Opções do Menu</header>
+      <div class="profile-tree-scroll">
+        {% set ns = namespace(path='', screen='', path_open=false) %}
+        {% for a in accesses %}
+          {% if ns.path != a.caminho_completo %}
+            {% if ns.path_open %}</div></details>{% endif %}
+            <details open class="profile-path-node" data-path-node>
+              <summary>
+                <span class="tree-expander">−</span>
+                <span class="tree-folder">📁</span>
+                <span>{{ a.caminho_completo }}</span>
+              </summary>
+              <div class="profile-screen-list">
+            {% set ns.path = a.caminho_completo %}
+            {% set ns.screen = '' %}
+            {% set ns.path_open = true %}
+          {% endif %}
+
+          {% if ns.screen != a.tela_final %}
+            <button
+              type="button"
+              class="profile-screen-row"
+              data-screen-key="{{ a.caminho_completo }}||{{ a.tela_final }}"
+              data-search="{{ (a.caminho_completo ~ ' ' ~ a.tela_final)|lower }}"
+            >
+              <span class="screen-access-state denied" data-screen-state>×</span>
+              <span class="screen-name">{{ a.tela_final }}</span>
+              <span class="screen-count" data-screen-count>0</span>
+            </button>
+            {% set ns.screen = a.tela_final %}
+          {% endif %}
+        {% endfor %}
+        {% if ns.path_open %}</div></details>{% endif %}
+      </div>
+    </section>
+
+    <section class="profile-buttons-column">
+      <header class="profile-column-title" data-access-title>Selecione uma tela</header>
+      <div class="profile-buttons-scroll">
+        <p class="profile-access-hint" data-access-hint>
+          Clique em uma tela à esquerda. Depois marque ou desmarque os botões desta tela.
+        </p>
+
+        {% set ns = namespace(path='', screen='', open=false) %}
+        {% for a in accesses %}
+          {% if ns.path != a.caminho_completo or ns.screen != a.tela_final %}
+            {% if ns.open %}</div>{% endif %}
+            <div
+              class="profile-button-group"
+              data-button-group="{{ a.caminho_completo }}||{{ a.tela_final }}"
+              hidden
+            >
+              <button type="button" class="profile-select-screen" data-select-screen>
+                <span data-select-screen-icon>×</span>
+                <span data-select-screen-text>Permitir tela e todos os botões</span>
+              </button>
+            {% set ns.path = a.caminho_completo %}
+            {% set ns.screen = a.tela_final %}
+            {% set ns.open = true %}
+          {% endif %}
+
+          <label class="profile-button-row">
+            <input
+              type="checkbox"
+              name="access_ids"
+              value="{{ a.id }}"
+              data-access-id="{{ a.id }}"
+              {% if selected is defined and a.id in selected %}checked{% endif %}
+            >
+            <span class="button-access-state" data-button-state>×</span>
+            <span class="button-name">{{ a.botao }}</span>
+            <span class="permission-badge" data-permission-badge>Negado</span>
+          </label>
+        {% endfor %}
+        {% if ns.open %}</div>{% endif %}
+      </div>
+    </section>
+  </div>
+</section>
+  <div class="proposal-save"><button type="submit">Criar proposta</button></div>
+</form>
+{% endblock %}
+{% block scripts %}<script src="{{ url_for('static', path='/proposals.js') }}"></script>{% endblock %}
+===== FIM app/templates/proposal_new.html =====
+
+===== INICIO app/templates/proposal_edit.html =====
+{% extends "base.html" %}
+{% block title %}Editar proposta | Gestão de Acessos{% endblock %}
+{% block head %}<link rel="stylesheet" href="{{ url_for('static', path='/proposals.css') }}">{% endblock %}
+{% block content %}
+<a class="back" href="/portal/propostas/{{ proposal.id }}">Voltar</a>
+<section class="hero compact">
+  <p class="eyebrow">Solicitação de acesso</p>
+  <h1>Editar proposta</h1>
+  <p>O símbolo da tela fica verde quando existe algum botão permitido.</p>
+</section>
+<form method="post" class="proposal-workspace">
+  <section class="form-card proposal-meta-grid">
+    <label>Nome<input name="name" required value="{{ proposal.name }}"></label>
+    <label>Departamento<input value="{{ proposal.department.nome }}" disabled></label>
+    <label class="span-2">Descrição<textarea name="description">{{ proposal.description or '' }}</textarea></label>
+    <label class="span-2">Justificativa<textarea name="justification">{{ proposal.justification or '' }}</textarea></label>
+  </section>
+  <section class="profile-access-editor" data-access-editor>
+  <div class="profile-tree-toolbar">
+    <div class="profile-view-buttons">
+      <button type="button" class="view-button active">Árvore de acessos</button>
+      <button type="button" class="view-button" data-only-selected-button>Somente selecionados</button>
+    </div>
+    <input type="search" data-tree-search placeholder="Pesquisar caminho, tela ou botão">
+  </div>
+
+  <div class="profile-tree-grid">
+    <section class="profile-tree-column">
+      <header class="profile-column-title">Opções do Menu</header>
+      <div class="profile-tree-scroll">
+        {% set ns = namespace(path='', screen='', path_open=false) %}
+        {% for a in accesses %}
+          {% if ns.path != a.caminho_completo %}
+            {% if ns.path_open %}</div></details>{% endif %}
+            <details open class="profile-path-node" data-path-node>
+              <summary>
+                <span class="tree-expander">−</span>
+                <span class="tree-folder">📁</span>
+                <span>{{ a.caminho_completo }}</span>
+              </summary>
+              <div class="profile-screen-list">
+            {% set ns.path = a.caminho_completo %}
+            {% set ns.screen = '' %}
+            {% set ns.path_open = true %}
+          {% endif %}
+
+          {% if ns.screen != a.tela_final %}
+            <button
+              type="button"
+              class="profile-screen-row"
+              data-screen-key="{{ a.caminho_completo }}||{{ a.tela_final }}"
+              data-search="{{ (a.caminho_completo ~ ' ' ~ a.tela_final)|lower }}"
+            >
+              <span class="screen-access-state denied" data-screen-state>×</span>
+              <span class="screen-name">{{ a.tela_final }}</span>
+              <span class="screen-count" data-screen-count>0</span>
+            </button>
+            {% set ns.screen = a.tela_final %}
+          {% endif %}
+        {% endfor %}
+        {% if ns.path_open %}</div></details>{% endif %}
+      </div>
+    </section>
+
+    <section class="profile-buttons-column">
+      <header class="profile-column-title" data-access-title>Selecione uma tela</header>
+      <div class="profile-buttons-scroll">
+        <p class="profile-access-hint" data-access-hint>
+          Clique em uma tela à esquerda. Depois marque ou desmarque os botões desta tela.
+        </p>
+
+        {% set ns = namespace(path='', screen='', open=false) %}
+        {% for a in accesses %}
+          {% if ns.path != a.caminho_completo or ns.screen != a.tela_final %}
+            {% if ns.open %}</div>{% endif %}
+            <div
+              class="profile-button-group"
+              data-button-group="{{ a.caminho_completo }}||{{ a.tela_final }}"
+              hidden
+            >
+              <button type="button" class="profile-select-screen" data-select-screen>
+                <span data-select-screen-icon>×</span>
+                <span data-select-screen-text>Permitir tela e todos os botões</span>
+              </button>
+            {% set ns.path = a.caminho_completo %}
+            {% set ns.screen = a.tela_final %}
+            {% set ns.open = true %}
+          {% endif %}
+
+          <label class="profile-button-row">
+            <input
+              type="checkbox"
+              name="access_ids"
+              value="{{ a.id }}"
+              data-access-id="{{ a.id }}"
+              {% if selected is defined and a.id in selected %}checked{% endif %}
+            >
+            <span class="button-access-state" data-button-state>×</span>
+            <span class="button-name">{{ a.botao }}</span>
+            <span class="permission-badge" data-permission-badge>Negado</span>
+          </label>
+        {% endfor %}
+        {% if ns.open %}</div>{% endif %}
+      </div>
+    </section>
+  </div>
+</section>
+  <div class="proposal-save"><button type="submit">Salvar alterações</button></div>
+</form>
+{% endblock %}
+{% block scripts %}<script src="{{ url_for('static', path='/proposals.js') }}"></script>{% endblock %}
+===== FIM app/templates/proposal_edit.html =====
+
+===== INICIO app/static/classic-tree.js =====
+const ClassicAccessTree=(()=>{
+  const esc=value=>{const e=document.createElement('div');e.textContent=String(value??'');return e.innerHTML};
+  const norm=value=>String(value||'').trim().toLocaleLowerCase('pt-BR');
+  const statusClass=value=>norm(value)==='permitido'?'allowed':norm(value)==='negado'?'denied':'unknown';
+  const pathParts=value=>String(value||'Sem caminho').split(/\s*>\s*|\s*\/\s*|\s*\\\s*/).map(x=>x.trim()).filter(Boolean);
+
+  function makeNode(){return{children:new Map(),screens:new Map()}}
+  function buildTree(items){
+    const root=makeNode();
+    for(const item of items){
+      let node=root;
+      for(const name of pathParts(item.caminho)){
+        if(!node.children.has(name))node.children.set(name,makeNode());
+        node=node.children.get(name);
+      }
+      const screen=item.tela||'Sem tela';
+      if(!node.screens.has(screen))node.screens.set(screen,[]);
+      node.screens.get(screen).push(item);
+    }
+    return root;
+  }
+  function icon(status){
+    const type=statusClass(status);
+    const symbol=type==='allowed'?'✓':type==='denied'?'✕':'•';
+    return `<span class="classic-access-icon ${type}">${symbol}</span>`;
+  }
+  function badge(status){return `<span class="classic-badge ${statusClass(status)}">${esc(status||'Nao identificado')}</span>`}
+  function accessLine(item,compare){
+    const line=document.createElement('div');
+    line.className=`classic-access-line ${statusClass(item.status)}`;
+    line.dataset.search=norm(`${item.caminho} ${item.tela} ${item.botao} ${item.statusA||''} ${item.statusB||''}`);
+    const state=compare?`${badge(item.statusA)}<span class="status-arrow">→</span>${badge(item.statusB)}`:badge(item.status);
+    line.innerHTML=`${icon(item.status)}<span class="classic-access-name">${esc(item.botao||'Sem botao')}</span><span class="classic-access-status">${state}</span>`;
+    return line;
+  }
+  function screenLine(name,items,onSelect){
+    const button=document.createElement('button');
+    button.type='button';
+    button.className='classic-screen-line';
+    button.dataset.search=norm(`${name} ${items.map(x=>x.botao).join(' ')}`);
+    button.innerHTML=`<span class="screen-check">✓</span><span>${esc(name)}</span><small>${items.length}</small>`;
+    button.addEventListener('click',()=>onSelect(name,items,button));
+    return button;
+  }
+  function branch(name,node,onSelect,depth=0){
+    const details=document.createElement('details');
+    details.className='classic-branch';
+    details.open=depth===0;
+    const summary=document.createElement('summary');
+    summary.innerHTML=`<span class="classic-expander"></span><span class="classic-folder"></span><span class="classic-label">${esc(name)}</span>`;
+    details.appendChild(summary);
+    const children=document.createElement('div');
+    children.className='classic-children';
+    [...node.children.entries()].sort(([a],[b])=>a.localeCompare(b,'pt-BR')).forEach(([child,value])=>children.appendChild(branch(child,value,onSelect,depth+1)));
+    [...node.screens.entries()].sort(([a],[b])=>a.localeCompare(b,'pt-BR')).forEach(([screen,items])=>children.appendChild(screenLine(screen,items,onSelect)));
+    details.appendChild(children);
+    return details;
+  }
+  function pathLine(item,compare){
+    const row=document.createElement('div');
+    row.className='classic-path-row';
+    row.dataset.search=norm(`${item.caminho} ${item.tela} ${item.botao}`);
+    const state=compare?`${badge(item.statusA)}<span class="status-arrow">→</span>${badge(item.statusB)}`:badge(item.status);
+    row.innerHTML=`<div>${icon(item.status)}<span>${esc(item.caminho)} <b>›</b> ${esc(item.tela)} <b>›</b> ${esc(item.botao)}</span></div><div>${state}</div>`;
+    return row;
+  }
+  function mountBrowser(root){
+    if(root.dataset.mounted==='true')return;
+    const source=document.getElementById(root.dataset.source);
+    if(!source)return;
+    let items=[];
+    try{items=JSON.parse(source.textContent||'[]')}catch(error){console.error('JSON invalido da arvore',error);return}
+    const compare=root.dataset.compare==='true';
+    const toolbar=root.previousElementSibling?.classList.contains('classic-toolbar')?root.previousElementSibling:null;
+    const tree=root.querySelector('[data-classic-tree]');
+    const accesses=root.querySelector('[data-classic-accesses]');
+    const title=root.querySelector('[data-classic-title]');
+    const paths=root.querySelector('[data-classic-paths]');
+    const select=(screen,list,button)=>{
+      root.querySelectorAll('.classic-screen-line.active').forEach(x=>x.classList.remove('active'));
+      button.classList.add('active');
+      title.textContent=screen;
+      accesses.innerHTML='';
+      list.slice().sort((a,b)=>String(a.botao).localeCompare(String(b.botao),'pt-BR')).forEach(item=>accesses.appendChild(accessLine(item,compare)));
+    };
+    const hierarchy=buildTree(items);
+    tree.innerHTML='';
+    [...hierarchy.children.entries()].sort(([a],[b])=>a.localeCompare(b,'pt-BR')).forEach(([name,node])=>tree.appendChild(branch(name,node,select)));
+    [...hierarchy.screens.entries()].sort(([a],[b])=>a.localeCompare(b,'pt-BR')).forEach(([screen,list])=>tree.appendChild(screenLine(screen,list,select)));
+    accesses.innerHTML='<p class="classic-empty">Selecione uma tela na arvore.</p>';
+    paths.innerHTML='';
+    items.slice().sort((a,b)=>`${a.caminho}${a.tela}${a.botao}`.localeCompare(`${b.caminho}${b.tela}${b.botao}`,'pt-BR')).forEach(item=>paths.appendChild(pathLine(item,compare)));
+
+    if(toolbar){
+      toolbar.querySelectorAll('[data-classic-mode]').forEach(button=>button.addEventListener('click',()=>{
+        root.dataset.mode=button.dataset.classicMode;
+        toolbar.querySelectorAll('[data-classic-mode]').forEach(x=>x.classList.toggle('active',x===button));
+      }));
+      const search=toolbar.querySelector('[data-classic-search]');
+      if(search)search.addEventListener('input',()=>{
+        const query=norm(search.value);
+        root.querySelectorAll('[data-search]').forEach(element=>element.hidden=Boolean(query)&&!element.dataset.search.includes(query));
+        root.querySelectorAll('details').forEach(details=>{
+          const visible=[...details.querySelectorAll('.classic-screen-line')].some(x=>!x.hidden);
+          details.hidden=!visible;
+          if(query&&visible)details.open=true;
+        });
+      });
+    }
+    root.dataset.mounted='true';
+  }
+  function activateProfileTab(button){
+    const group=button.closest('[data-profile-tabs]');
+    if(!group)return;
+    const groupName=group.dataset.profileTabs;
+    group.querySelectorAll('[data-profile-tab]').forEach(x=>x.classList.toggle('active',x===button));
+    document.querySelectorAll(`[data-profile-panel="${groupName}"]`).forEach(panel=>panel.classList.toggle('active',panel.id===button.dataset.profileTab));
+    const active=document.getElementById(button.dataset.profileTab);
+    active?.querySelectorAll('[data-classic-browser]').forEach(mountBrowser);
+  }
+  function start(){
+    document.querySelectorAll('[data-classic-browser]').forEach(mountBrowser);
+    document.querySelectorAll('[data-profile-tab]').forEach(button=>button.addEventListener('click',()=>activateProfileTab(button)));
+  }
+  return{start};
+})();
+document.addEventListener('DOMContentLoaded',ClassicAccessTree.start);
+
+===== FIM app/static/classic-tree.js =====
+
+===== INICIO app/static/styles.css =====
+*{box-sizing:border-box}body{margin:0;background:#f3f6fa;color:#172033;font-family:Segoe UI,Arial,sans-serif}.topbar{display:flex;justify-content:space-between;align-items:center;padding:15px 4vw;background:#17365d;color:white}.brand,.topbar a{color:white;text-decoration:none}.brand{font-size:20px;font-weight:800}.topbar nav{display:flex;gap:18px}.container{width:min(1500px,94vw);margin:24px auto}.hero{padding:24px 28px;border-radius:14px;background:linear-gradient(120deg,#17365d,#245f92);color:white;margin-bottom:18px}.hero.compact{padding:18px 24px}.hero h1,.hero p{margin:0 0 8px}.eyebrow{text-transform:uppercase;letter-spacing:.12em;font-size:12px;color:#cbe5ff}.cards{display:grid;grid-template-columns:repeat(5,minmax(130px,1fr));gap:14px}.cards article,.panel{background:white;border:1px solid #d7e1eb;border-radius:12px;box-shadow:0 4px 16px rgba(23,54,93,.06)}.cards article{padding:18px}.cards span{display:block;color:#667085;font-size:13px}.cards strong{display:block;margin-top:7px;font-size:30px;color:#17365d}.panel{padding:18px;margin-top:18px}.action-panel{padding:24px}.button,button,.secondary{display:inline-block;border:0;border-radius:8px;padding:10px 14px;text-decoration:none;cursor:pointer}.button,button{background:#1f4e78;color:white}.secondary{background:#e9eef4;color:#17365d}.filters{display:grid;grid-template-columns:2fr 1fr auto auto;gap:10px;margin-bottom:18px}.filters input,.filters select,input[type=search]{width:100%;padding:10px 12px;border:1px solid #aebdca;border-radius:8px;background:white}.panel-title{display:flex;justify-content:space-between;align-items:center;gap:12px}.people-grid{display:grid;grid-template-columns:repeat(3,minmax(220px,1fr));gap:12px}.person-card{display:flex;flex-direction:column;gap:5px;padding:14px;border:1px solid #d9e3ec;border-radius:10px;text-decoration:none;color:#172033;background:#fbfcfe}.person-card:hover{border-color:#1f4e78}.person-card span,.person-card small{color:#667085}.back{display:inline-block;margin-bottom:12px;color:#1f4e78}.profile-layout{display:grid;grid-template-columns:1fr 1fr;gap:18px}.chips{display:flex;gap:8px;flex-wrap:wrap}.chips span{padding:6px 10px;border-radius:999px;background:#e6f3ff;color:#174d7a}.stats{display:flex;gap:24px;flex-wrap:wrap}.stats span{color:#667085}.stats b{display:block;font-size:26px;color:#17365d}.table-wrap{overflow:auto;max-height:65vh}table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:10px;border-bottom:1px solid #e6edf3;font-size:14px}th{position:sticky;top:0;background:#eef4fa;color:#17365d}.status{display:inline-block;padding:4px 8px;border-radius:999px}.status.permitido{background:#d9f5df;color:#075b24}.status.negado{background:#fde0df;color:#8a1712}.status.nao-identificado{background:#eef1f4;color:#475467}@media(max-width:950px){.cards{grid-template-columns:repeat(2,1fr)}.filters,.profile-layout{grid-template-columns:1fr}.people-grid{grid-template-columns:1fr}.topbar{align-items:flex-start;gap:12px;flex-direction:column}}
+.profiles-grid{display:grid;grid-template-columns:repeat(3,minmax(240px,1fr));gap:14px}.profile-card{display:block;padding:17px;background:#fff;border:1px solid #d7e1eb;border-radius:12px;color:#172033;text-decoration:none;box-shadow:0 4px 16px rgba(23,54,93,.05)}.profile-card:hover{border-color:#1f4e78;transform:translateY(-1px)}.profile-card-title{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}.profile-card-title strong{font-size:17px}.profile-numbers{display:flex;gap:22px;margin:18px 0}.profile-numbers span{color:#667085}.profile-numbers b{display:block;font-size:24px;color:#17365d}.profile-card small{color:#667085}.small-table{max-height:320px}.profiles-filter{grid-template-columns:2fr 1fr auto auto}@media(max-width:950px){.profiles-grid{grid-template-columns:1fr}.profiles-filter{grid-template-columns:1fr}}
+
+.compare-form{display:grid;grid-template-columns:1fr 1fr 1.3fr .8fr auto auto;gap:10px;align-items:end;margin-bottom:18px}.compare-form label{display:flex;flex-direction:column;gap:6px;font-size:13px;color:#475467}.compare-form select,.compare-form input{padding:10px 12px;border:1px solid #aebdca;border-radius:8px;background:#fff;min-width:0}.compare-summary{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}.compare-summary article{padding:18px;border-radius:12px;background:#fff;border:1px solid #d7e1eb}.compare-summary span{display:block;color:#667085}.compare-summary strong{font-size:30px}.compare-summary .keep{border-left:5px solid #15803d}.compare-summary .add{border-left:5px solid #2563eb}.compare-summary .remove{border-left:5px solid #dc2626}.compare-section.keep{border-left:5px solid #15803d}.compare-section.add{border-left:5px solid #2563eb}.compare-section.remove{border-left:5px solid #dc2626}@media(max-width:1100px){.compare-form{grid-template-columns:1fr 1fr}.compare-summary{grid-template-columns:1fr}}
+
+.access-tree{display:flex;flex-direction:column;gap:8px;margin-top:12px}.access-node{border:1px solid #dbe4ec;border-radius:10px;background:#fbfcfe;overflow:hidden}.access-node>summary{display:flex;justify-content:space-between;align-items:center;padding:11px 13px;cursor:pointer;font-weight:700;color:#17365d}.access-node>summary small{padding:2px 7px;border-radius:999px;background:#e8eef5;color:#475467}.access-branch{display:flex;flex-direction:column;gap:7px;padding:0 10px 10px 18px}.access-leaf{display:grid;grid-template-columns:minmax(220px,1fr) auto;align-items:center;gap:12px;padding:10px 12px;border-radius:8px;border-left:5px solid #98a2b3;background:white}.access-leaf>div:first-child{min-width:0}.access-leaf strong,.access-leaf small{display:block;overflow-wrap:anywhere}.access-leaf small{margin-top:3px;color:#667085}.access-leaf.is-allowed{border-left-color:#15803d;background:#ecfdf3}.access-leaf.is-denied{border-left-color:#dc2626;background:#fff1f0}.access-leaf.is-unknown{border-left-color:#98a2b3}.access-status,.compare-status{display:inline-block;padding:4px 9px;border-radius:999px;font-weight:700;white-space:nowrap}.access-status.is-allowed,.compare-status.is-allowed{background:#bbf7d0;color:#075b24}.access-status.is-denied,.compare-status.is-denied{background:#fecaca;color:#8a1712}.access-status.is-unknown,.compare-status.is-unknown{background:#e4e7ec;color:#475467}.leaf-statuses{display:flex;align-items:center;gap:7px}.compare-arrow{color:#667085}.empty-state{color:#667085}@media(max-width:700px){.access-leaf{grid-template-columns:1fr}.leaf-statuses{justify-content:flex-start}}
+
+.classic-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:10px 0}.classic-modes{display:flex;gap:5px}.classic-modes button,.profile-tabs button{border:1px solid #bac5cf;background:#f6f7f8;color:#243447;border-radius:4px;padding:7px 11px;cursor:pointer}.classic-modes button.active,.profile-tabs button.active{background:#dbeafe;border-color:#7ca8d4;color:#12375f}.classic-search{width:min(420px,100%);padding:7px 9px;border:1px solid #aebdca;border-radius:4px}.classic-browser{border:1px solid #cfd6dc;background:#fff}.classic-browser-grid{display:grid;grid-template-columns:minmax(440px,1.35fr) minmax(300px,.85fr);min-height:560px}.classic-menu-pane{border-right:1px solid #cfd6dc}.classic-pane-title{height:30px;padding:6px 9px;border-bottom:1px solid #cfd6dc;background:#fafafa;font-size:13px;font-weight:700}.classic-tree,.classic-accesses{height:560px;overflow:auto;padding:8px 10px;font-size:13px}.classic-branch{margin:0}.classic-branch summary{list-style:none;display:flex;align-items:center;gap:4px;min-height:22px;cursor:pointer;white-space:nowrap}.classic-branch summary::-webkit-details-marker{display:none}.classic-expander:before{content:'+';display:grid;place-items:center;width:11px;height:11px;border:1px solid #777;background:#fff;font-size:9px;line-height:9px}.classic-branch[open]>summary .classic-expander:before{content:'−'}.classic-folder:before{content:'📁';font-size:15px}.classic-branch[open]>summary .classic-folder:before{content:'📂'}.classic-children{margin-left:5px;padding-left:14px;border-left:1px dotted #8d99a5}.classic-screen-line{display:grid;grid-template-columns:18px minmax(120px,1fr) auto;align-items:center;gap:3px;width:100%;min-height:22px;padding:1px 4px;border:0;background:transparent;text-align:left;cursor:pointer;font-size:13px}.classic-screen-line:hover,.classic-screen-line.active{background:#dbeafe}.screen-check{color:#0aaa37;font-size:18px;font-weight:900}.classic-screen-line small{color:#7b8794}.classic-access-line{display:grid;grid-template-columns:20px minmax(130px,1fr) auto;align-items:center;gap:4px;min-height:27px;border-bottom:1px solid #f0f1f2}.classic-access-icon{font-size:18px;font-weight:900}.classic-access-icon.allowed{color:#0aaa37}.classic-access-icon.denied{color:#d92d20}.classic-access-icon.unknown{color:#7b8794}.classic-access-status,.right-badges{display:flex;align-items:center;gap:5px}.classic-badge{padding:2px 7px;border-radius:999px;font-size:11px;font-weight:700}.classic-badge.allowed{color:#067124;background:#d9fbe3}.classic-badge.denied{color:#9b1913;background:#ffe0dd}.classic-badge.unknown{color:#5e6975;background:#e9edf0}.classic-empty{color:#77828c}.classic-paths{display:none;max-height:620px;overflow:auto;padding:8px}.classic-browser[data-mode="paths"] .classic-browser-grid{display:none}.classic-browser[data-mode="paths"] .classic-paths{display:block}.classic-path-row{display:grid;grid-template-columns:minmax(320px,1fr) auto;gap:8px;align-items:center;padding:7px 8px;border-bottom:1px solid #e7eaed}.classic-path-row>div{display:flex;align-items:center;gap:5px}.classic-path-row b{color:#7a8794}.profile-tabs{display:flex;gap:5px;flex-wrap:wrap;margin:10px 0}.profile-panel{display:none}.profile-panel.active{display:block}.consolidated-rule{padding:8px 10px;border-left:4px solid #0aaa37;background:#effff4;margin:8px 0}.classic-comparison{border:1px solid #cfd6dc;background:#fff}.compare-header{display:grid;grid-template-columns:1fr 1fr;border-bottom:1px solid #cfd6dc}.compare-header>div{padding:8px 10px;background:#fafafa;font-weight:700}.compare-header>div:first-child{border-right:1px solid #cfd6dc}.compare-tree{padding:8px 10px;max-height:660px;overflow:auto}.compare-screen{margin:2px 0 5px 0}.compare-screen-title{padding:3px 4px;color:#183b5e;font-weight:700}.compare-access-row{display:grid;grid-template-columns:1fr 1fr;border-bottom:1px solid #eef0f2}.compare-access-row>div{display:grid;grid-template-columns:20px minmax(80px,1fr) auto;align-items:center;gap:4px;padding:4px 8px}.compare-access-row>div:first-child{border-right:1px solid #d8dde2}.compare-paths{display:none;padding:8px;max-height:660px;overflow:auto}.classic-comparison[data-mode="paths"] .compare-tree{display:none}.classic-comparison[data-mode="paths"] .compare-paths{display:block}.status-arrow{color:#7b8794}@media(max-width:950px){.classic-browser-grid{grid-template-columns:1fr}.classic-menu-pane{border-right:0;border-bottom:1px solid #cfd6dc}.classic-tree,.classic-accesses{height:auto;max-height:480px}.classic-toolbar{align-items:stretch;flex-direction:column}.classic-search{width:100%}.compare-access-row{grid-template-columns:1fr}.compare-access-row>div:first-child{border-right:0;border-bottom:1px dashed #d8dde2}.classic-path-row{grid-template-columns:1fr}}
+
+/* COMPARACAO_ALINHADA_V1 */
+
+.compare-selectors{display:grid;grid-template-columns:1fr auto 1fr auto;gap:10px;align-items:end;margin-bottom:16px}.compare-selectors label{display:flex;flex-direction:column;gap:6px;color:#475467;font-size:13px}.compare-selectors select,.compare-selectors button,.compare-toolbar select,.compare-toolbar input,.compare-toolbar button{padding:9px 11px;border:1px solid #b8c3cd;border-radius:7px;background:#fff}.compare-selectors button[type="submit"]{background:#1f4e78;color:#fff;border-color:#1f4e78}.swap-button{font-size:20px}.compare-cards{display:grid;grid-template-columns:repeat(5,minmax(150px,1fr));gap:10px;margin-bottom:14px}.compare-cards article{padding:13px;background:#fff;border:1px solid #d7e0e8;border-left:4px solid #98a2b3;border-radius:8px}.compare-cards span{display:block;color:#667085;font-size:12px}.compare-cards strong{font-size:27px}.compare-cards .equal{border-left-color:#15803d}.compare-cards .different{border-left-color:#d97706}.compare-cards .only-a{border-left-color:#2563eb}.compare-cards .only-b{border-left-color:#7c3aed}.compare-toolbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px}.compare-tabs{display:flex;gap:4px}.compare-tabs button.active{background:#17365d;color:#fff}.difference-toggle{display:flex;align-items:center;gap:5px}.aligned-comparison{background:#fff;border:1px solid #cfd8e1;border-radius:8px;overflow:hidden}.comparison-header,.comparison-row{display:grid;grid-template-columns:minmax(420px,1.6fr) minmax(170px,.7fr) minmax(170px,.7fr)}.comparison-header{position:sticky;top:0;z-index:2;background:#edf4fa;font-weight:700;color:#17365d}.comparison-header>div,.comparison-row>div{padding:8px 10px;border-right:1px solid #d9e0e6}.comparison-header>div:last-child,.comparison-row>div:last-child{border-right:0}.comparison-tree,.comparison-paths{max-height:680px;overflow:auto;padding:8px}.comparison-paths{display:none}.aligned-comparison[data-view="paths"] .comparison-tree{display:none}.aligned-comparison[data-view="paths"] .comparison-paths{display:block}.comparison-branch summary{list-style:none;display:flex;align-items:center;gap:5px;min-height:25px;cursor:pointer}.comparison-branch summary::-webkit-details-marker{display:none}.branch-toggle:before{content:'+';display:grid;place-items:center;width:12px;height:12px;border:1px solid #667085;font-size:10px}.comparison-branch[open]>summary .branch-toggle:before{content:'−'}.branch-folder:before{content:'📁'}.comparison-branch[open]>summary .branch-folder:before{content:'📂'}.comparison-branch summary small,.screen-heading small{margin-left:auto;color:#667085}.comparison-children{margin-left:6px;padding-left:15px;border-left:1px dotted #98a2b3}.screen-heading{display:flex;align-items:center;gap:5px;padding:4px 5px;color:#17365d}.screen-heading>span{color:#159447}.comparison-row{border-bottom:1px solid #edf0f2;border-left:4px solid transparent}.comparison-row.status_diferente{border-left-color:#d97706;background:#fffaf0}.comparison-row.somente_a{border-left-color:#2563eb;background:#f3f7ff}.comparison-row.somente_b{border-left-color:#7c3aed;background:#faf5ff}.comparison-row.igual{border-left-color:#15803d}.comparison-name small,.comparison-name span{display:block}.comparison-name small{color:#667085}.comparison-name em{display:inline-block;margin-top:3px;color:#667085;font-size:11px;font-style:normal}.compare-state{display:inline-flex;align-items:center;gap:5px;padding:4px 8px;border-radius:999px;font-size:12px;font-weight:700}.compare-state.allowed{background:#d9fbe3;color:#075b24}.compare-state.denied{background:#ffe0dd;color:#8a1712}.compare-state.absent{background:#e9edf0;color:#475467}.compare-empty{padding:18px}@media(max-width:1050px){.compare-cards{grid-template-columns:repeat(2,1fr)}.comparison-header,.comparison-row{grid-template-columns:minmax(260px,1.2fr) minmax(130px,.7fr) minmax(130px,.7fr)}}@media(max-width:720px){.compare-selectors{grid-template-columns:1fr}.swap-button{display:none}.compare-cards{grid-template-columns:1fr}.comparison-header,.comparison-row{grid-template-columns:1fr}.comparison-header{display:none}.comparison-row>div{border-right:0}.comparison-row>div:nth-child(2):before{content:'Perfil A: ';font-weight:700}.comparison-row>div:nth-child(3):before{content:'Perfil B: ';font-weight:700}}
+
+/* PORTAL_INTEGRADO_V2 */
+.topbar nav{align-items:center}.nav-scope{padding:5px 9px;border-radius:999px;background:rgba(255,255,255,.13);font-size:12px}.logout-form{margin:0}.logout-form button{padding:6px 10px;border:1px solid rgba(255,255,255,.4);background:transparent;color:#fff}.auth-shell{min-height:75vh;display:grid;place-items:center}.auth-card{width:min(430px,94vw);display:grid;gap:14px;padding:30px;background:#fff;border:1px solid #d7e0e8;border-radius:14px;box-shadow:0 18px 50px rgba(18,55,95,.16)}.auth-mark{width:48px;height:48px;display:grid;place-items:center;border-radius:12px;background:#17365d;color:#fff;font-weight:800}.auth-card h1,.auth-card p{margin:0}.auth-card label{display:grid;gap:6px}.auth-card input,.integrated-form input,.integrated-form select,.integrated-form textarea,.account-form input,.account-form select{padding:10px;border:1px solid #aebdca;border-radius:7px}.wide{width:100%}.primary,.button{display:inline-block;padding:9px 13px;border:0;border-radius:7px;background:#1f4e78;color:#fff;text-decoration:none}.portal-metrics article a{display:inline-block;margin-top:8px;color:#1f4e78}.integrated-form{display:grid;grid-template-columns:1fr 1fr;gap:13px}.integrated-form label{display:grid;gap:6px}.integrated-form .full{grid-column:1/-1}.integrated-form textarea{min-height:90px}.alert{padding:10px 12px;border-left:4px solid #d97706;background:#fff8e7}.alert.error{border-color:#dc2626;background:#fff1f0}.proposal-list{display:flex;flex-direction:column;gap:8px;margin-top:12px}.proposal-list>a,.proposal-list>article{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:13px;background:#fff;border:1px solid #d7e0e8;border-radius:9px;color:#172033;text-decoration:none}.proposal-list span{display:block;margin-top:4px;color:#667085}.flow-status{padding:4px 9px;border-radius:999px;background:#e7edf3;font-style:normal}.flow-status.em_revisao{background:#fff0c2;color:#805700}.flow-status.aprovado{background:#d9fbe3;color:#075b24}.flow-status.rejeitado{background:#ffe0dd;color:#8a1712}.access-list{max-height:580px;overflow:auto}.access-list>div{display:grid;grid-template-columns:1fr auto;gap:10px;padding:8px;border-bottom:1px solid #edf0f2}.permission{padding:3px 8px;border-radius:999px}.permission.permitido{background:#d9fbe3;color:#075b24}.permission.negado{background:#ffe0dd;color:#8a1712}.review-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:12px}.review-grid form{display:grid;gap:8px}.review-grid textarea{min-height:90px}.approve{background:#15803d}.return{background:#d97706}.reject{background:#dc2626}.account-form{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.chips a{padding:6px 10px;border-radius:999px;background:#e6f3ff;color:#174d7a;text-decoration:none}@media(max-width:900px){.topbar nav{align-items:flex-start;flex-wrap:wrap}.integrated-form,.review-grid,.account-form{grid-template-columns:1fr}.integrated-form .full{grid-column:auto}.proposal-list>a,.proposal-list>article{align-items:flex-start;flex-direction:column}}
+
+/* SESSAO_E_EDICAO_V2 */
+.employee-page-actions{display:flex;justify-content:flex-end;margin:-6px 0 12px}.checkbox-field{display:flex!important;align-items:center;gap:8px}.form-actions{display:flex;justify-content:flex-end;gap:8px}.secondary-button{padding:9px 13px;border-radius:7px;background:#e7edf3;color:#17365d;text-decoration:none}.auth-card small{color:#667085}
+
+/* ACCOUNT_EMPLOYEE_EDITOR */
+.responsive-table{overflow:auto}.responsive-table table{width:100%;border-collapse:collapse}.responsive-table th,.responsive-table td{padding:10px;border-bottom:1px solid #e5e7eb;text-align:left}.button.small{padding:6px 10px;font-size:13px}.employee-page-actions{display:flex;justify-content:flex-end;margin:-6px 0 12px}.checkbox-field{display:flex!important;align-items:center;gap:8px}.form-actions{display:flex;justify-content:flex-end;gap:8px}.secondary-button{padding:9px 13px;border-radius:7px;background:#e7edf3;color:#17365d;text-decoration:none}
+
+===== FIM app/static/styles.css =====
+
+===== INICIO app/static/portal.css =====
+*{box-sizing:border-box}body{margin:0;background:#f4f6f8;color:#172033;font-family:Segoe UI,Arial,sans-serif}.portal-nav{display:flex;align-items:center;gap:26px;padding:14px 4vw;background:#12375f;color:#fff}.portal-nav a{color:#fff;text-decoration:none}.portal-nav>a{font-weight:800;font-size:19px}.portal-nav nav{display:flex;gap:16px;flex:1}.portal-nav button{background:#fff;color:#12375f;border:0;border-radius:6px;padding:7px 11px}main{width:min(1400px,94vw);margin:24px auto}.portal-hero{padding:22px;background:linear-gradient(120deg,#17365d,#2c6fa5);color:#fff;border-radius:12px}.metrics{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-top:16px}.metrics article,.form-card,.list,.cards a{background:#fff;border:1px solid #d7e0e8;border-radius:10px;padding:16px}.metrics span,.cards span,.cards small,.list span{display:block;color:#667085}.metrics strong{font-size:30px}.cards{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.cards a{color:#172033;text-decoration:none}.chips{display:flex;gap:8px;flex-wrap:wrap}.chips span,.status,.permission{padding:4px 9px;border-radius:999px;background:#e7edf3}.title-row{display:flex;justify-content:space-between;align-items:center}.primary,button{display:inline-block;background:#1f4e78;color:#fff;border:0;border-radius:7px;padding:9px 13px;text-decoration:none}.list{display:flex;flex-direction:column;gap:8px}.list>a,.list>div{display:grid;grid-template-columns:1fr 1fr auto;gap:10px;padding:10px;border-bottom:1px solid #e8edf1;color:#172033;text-decoration:none}.form-card{display:grid;gap:12px;max-width:850px}.form-card label{display:grid;gap:5px}.form-card input,.form-card select,.form-card textarea{padding:9px;border:1px solid #aebdca;border-radius:6px}.form-card textarea{min-height:80px}.form-card.compact{grid-template-columns:repeat(3,1fr);max-width:none}.warning,.error{padding:10px;border-left:4px solid #d97706;background:#fff8e7}.error{border-color:#dc2626;background:#fff1f0}.access-list{background:#fff;border:1px solid #d7e0e8;border-radius:8px;max-height:560px;overflow:auto;margin-bottom:14px}.access-list>div{display:grid;grid-template-columns:1fr auto;gap:10px;padding:8px;border-bottom:1px solid #edf0f2}.permission.permitido{background:#d9fbe3;color:#075b24}.permission.negado{background:#ffe0dd;color:#8a1712}.review{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.review form{display:grid;gap:7px}.review textarea{min-height:80px}.login-body{min-height:100vh;display:grid;place-items:center;background:#12375f}.login-card{width:min(420px,92vw);display:grid;gap:12px;padding:28px;background:#fff;border-radius:12px}.login-card label{display:grid;gap:5px}.login-card input{padding:10px;border:1px solid #aebdca;border-radius:6px}@media(max-width:850px){.portal-nav{align-items:flex-start;flex-direction:column}.portal-nav nav{flex-wrap:wrap}.cards,.metrics,.review,.form-card.compact{grid-template-columns:1fr}.list>a,.list>div{grid-template-columns:1fr}}
+/* DIRECTORY_FILTERS_V1 */
+.directory-filters{display:grid;grid-template-columns:minmax(260px,1fr) minmax(230px,.65fr) auto;gap:12px;align-items:end;background:#fff;border:1px solid #d7e0e8;border-radius:10px;padding:16px;margin:18px 0 8px}.directory-filters label{display:grid;gap:6px;font-weight:700}.directory-filters input,.directory-filters select{width:100%;padding:10px;border:1px solid #aebdca;border-radius:7px;background:#fff}.filter-actions{display:flex;gap:9px;align-items:center}.filter-actions a{padding:9px 12px}.filter-result{color:#65758b;margin:10px 0 16px}@media(max-width:800px){.directory-filters{grid-template-columns:1fr}}
+
+===== FIM app/static/portal.css =====
+
+===== INICIO app/static/proposals.css =====
+.proposal-workspace{display:grid;gap:16px}.proposal-meta-grid{max-width:none!important;grid-template-columns:1fr 1fr!important}.span-2{grid-column:1/-1}.hidden-source{display:none!important}.proposal-base-note{padding:11px 13px;background:#eef5ff;border-left:4px solid #1f4e78;border-radius:6px;color:#27415e}.profile-access-editor{display:grid;gap:10px}.profile-tree-toolbar{display:flex;justify-content:space-between;gap:14px;align-items:center}.profile-view-buttons{display:flex;gap:6px}.view-button{background:#fff;color:#17365d;border:1px solid #9fb4c8;border-radius:5px;padding:8px 12px}.view-button.active{background:#e5f0fb;border-color:#4c94d6}.profile-tree-toolbar>input{width:min(420px,46%);padding:9px;border:1px solid #aebdca;border-radius:5px}.profile-tree-grid{display:grid;grid-template-columns:minmax(520px,1.55fr) minmax(340px,.95fr);border:1px solid #cbd5e1;background:#fff;min-height:570px}.profile-tree-column{border-right:1px solid #cbd5e1;min-width:0}.profile-column-title{font-weight:700;padding:9px 10px;border-bottom:1px solid #cbd5e1;background:#f8fafc}.profile-tree-scroll,.profile-buttons-scroll{height:570px;overflow:auto;padding:8px}.profile-path-node{padding:2px 0}.profile-path-node>summary{list-style:none;display:flex;align-items:center;gap:6px;padding:5px;cursor:pointer}.profile-path-node>summary::-webkit-details-marker{display:none}.tree-expander{display:inline-grid;place-items:center;width:14px;height:14px;border:1px solid #8b98a5;font-size:11px}.tree-folder{font-size:15px}.profile-screen-list{margin-left:18px;padding-left:14px;border-left:1px dotted #9aa8b6}.profile-screen-row{width:100%;display:grid;grid-template-columns:24px 1fr 34px;align-items:center;gap:4px;border:0;background:transparent;color:#172033;text-align:left;padding:7px 8px;border-radius:4px;cursor:pointer}.profile-screen-row:hover,.profile-screen-row.active{background:#dcecff}.screen-access-state{font-size:22px;font-weight:700;color:#e12b25;line-height:1}.screen-access-state.allowed{color:#00a33c}.screen-count{text-align:right;color:#64748b;font-size:12px}.profile-access-hint{padding:12px;color:#65758b}.profile-button-group{display:grid}.profile-select-screen{display:flex;align-items:center;gap:9px;border:0;border-bottom:1px solid #dfe5eb;background:#f8fafc;color:#172033;text-align:left;padding:10px;cursor:pointer;font-weight:700}.profile-select-screen [data-select-screen-icon]{font-size:22px;color:#e12b25}.profile-select-screen [data-select-screen-icon].allowed{color:#00a33c}.profile-button-row{display:grid;grid-template-columns:18px 25px 1fr auto;align-items:center;gap:4px;padding:7px 5px;border-bottom:1px solid #edf0f2}.button-access-state{font-size:22px;font-weight:700;color:#e12b25}.button-access-state.allowed{color:#00a33c}.permission-badge{padding:3px 8px;border-radius:999px;background:#ffe4dc;color:#a52c1f;font-size:12px}.permission-badge.allowed{background:#d5f8df;color:#06752d}.proposal-save{position:sticky;bottom:0;z-index:4;background:#fff;border-top:1px solid #d7e0e8;padding:12px;text-align:right}@media(max-width:900px){.proposal-meta-grid,.profile-tree-grid{grid-template-columns:1fr!important}.span-2{grid-column:auto}.profile-tree-column{border-right:0;border-bottom:1px solid #cbd5e1}.profile-tree-toolbar{align-items:stretch;flex-direction:column}.profile-tree-toolbar>input{width:100%}}
+===== FIM app/static/proposals.css =====
+
+===== INICIO app/static/proposals.js =====
+(() => {
+  const one = (selector, root = document) => root.querySelector(selector);
+  const all = (selector, root = document) => [...root.querySelectorAll(selector)];
+
+  all('[data-delete]').forEach(button => button.addEventListener('click', () => {
+    const dialog = one('#deleteDialog');
+    if (!dialog) return;
+    one('#deleteForm').action = `/portal/propostas/${button.dataset.delete}/excluir`;
+    one('#deleteText').textContent = `Deseja excluir “${button.dataset.name}”?`;
+    dialog.showModal();
+  }));
+  all('[data-close]').forEach(button => button.onclick = () => button.closest('dialog').close());
+
+  const origin = one('#origin');
+  const profile = one('#sourceProfile');
+  const employee = one('#sourceEmployee');
+  const note = one('#baseNote');
+
+  function updateSourceFields() {
+    if (!origin) return;
+    const profileMode = origin.value === 'COPIADO_DE_PERFIL';
+    profile?.closest('[data-source]')?.classList.toggle('hidden-source', !profileMode);
+    employee?.closest('[data-source]')?.classList.toggle('hidden-source', profileMode);
+    if (profile) { profile.required = profileMode; if (!profileMode) profile.value = ''; }
+    if (employee) { employee.required = !profileMode; if (profileMode) employee.value = ''; }
+    if (note) note.textContent = profileMode
+      ? 'Selecione o perfil. Somente os acessos permitidos começarão marcados.'
+      : 'Selecione o funcionário. Somente os acessos consolidados permitidos começarão marcados.';
+  }
+
+  const groupFor = key => one(`.profile-button-group[data-button-group="${CSS.escape(key)}"]`);
+  const screenFor = key => one(`.profile-screen-row[data-screen-key="${CSS.escape(key)}"]`);
+  const accessChecks = key => all('input[name="access_ids"]', groupFor(key));
+
+  function updateButtonRow(input) {
+    const row = input.closest('.profile-button-row');
+    one('[data-button-state]', row).textContent = input.checked ? '✓' : '×';
+    one('[data-button-state]', row).classList.toggle('allowed', input.checked);
+    const badge = one('[data-permission-badge]', row);
+    badge.textContent = input.checked ? 'Permitido' : 'Negado';
+    badge.classList.toggle('allowed', input.checked);
+  }
+
+  function updateScreen(key) {
+    const screen = screenFor(key);
+    const group = groupFor(key);
+    if (!screen || !group) return;
+    const checks = accessChecks(key);
+    const allowed = checks.filter(input => input.checked).length;
+    const state = one('[data-screen-state]', screen);
+    const count = one('[data-screen-count]', screen);
+    state.textContent = allowed > 0 ? '✓' : '×';
+    state.classList.toggle('allowed', allowed > 0);
+    screen.classList.toggle('has-access', allowed > 0);
+    count.textContent = allowed;
+    count.hidden = allowed === 0;
+    const selectIcon = one('[data-select-screen-icon]', group);
+    const selectText = one('[data-select-screen-text]', group);
+    selectIcon.textContent = allowed > 0 ? '✓' : '×';
+    selectIcon.classList.toggle('allowed', allowed > 0);
+    selectText.textContent = allowed === checks.length && checks.length
+      ? 'Negar tela e todos os botões'
+      : 'Permitir tela e todos os botões';
+  }
+
+  function synchronize() {
+    all('input[name="access_ids"]').forEach(updateButtonRow);
+    all('.profile-screen-row').forEach(screen => updateScreen(screen.dataset.screenKey));
+  }
+
+  function activateScreen(screen) {
+    const key = screen.dataset.screenKey;
+    all('.profile-screen-row').forEach(item => item.classList.remove('active'));
+    screen.classList.add('active');
+    all('.profile-button-group').forEach(group => group.hidden = true);
+    const group = groupFor(key);
+    if (group) group.hidden = false;
+    one('[data-access-title]').textContent = key.split('||').pop();
+    one('[data-access-hint]').hidden = true;
+  }
+
+  all('.profile-screen-row').forEach(screen => screen.addEventListener('click', () => activateScreen(screen)));
+
+  all('[data-select-screen]').forEach(button => button.addEventListener('click', () => {
+    const group = button.closest('.profile-button-group');
+    const key = group.dataset.buttonGroup;
+    const checks = accessChecks(key);
+    const allow = !checks.every(input => input.checked);
+    checks.forEach(input => input.checked = allow);
+    synchronize();
+  }));
+
+  all('input[name="access_ids"]').forEach(input => input.addEventListener('change', synchronize));
+
+  const search = one('[data-tree-search]');
+  const onlyButton = one('[data-only-selected-button]');
+  let onlySelected = false;
+  function filterTree() {
+    const term = (search?.value || '').toLowerCase();
+    all('.profile-screen-row').forEach(screen => {
+      const key = screen.dataset.screenKey;
+      const hasAccess = accessChecks(key).some(input => input.checked);
+      screen.hidden = !screen.dataset.search.includes(term) || (onlySelected && !hasAccess);
+    });
+    all('[data-path-node]').forEach(path => {
+      path.hidden = all('.profile-screen-row', path).every(screen => screen.hidden);
+    });
+  }
+  search?.addEventListener('input', filterTree);
+  onlyButton?.addEventListener('click', () => {
+    onlySelected = !onlySelected;
+    onlyButton.classList.toggle('active', onlySelected);
+    filterTree();
+  });
+
+  async function loadBase() {
+    if (!origin) return;
+    const source = origin.value === 'COPIADO_DE_PERFIL' ? profile : employee;
+    if (!source?.value) return;
+    if (note) note.textContent = 'Carregando acessos da base...';
+    try {
+      const response = await fetch(`/portal/propostas/base-acessos?origin=${encodeURIComponent(origin.value)}&source_id=${encodeURIComponent(source.value)}`);
+      if (!response.ok) throw new Error(await response.text());
+      const data = await response.json();
+      const ids = new Set(data.access_ids.map(String));
+      all('input[name="access_ids"]').forEach(input => input.checked = ids.has(input.value));
+      synchronize();
+      filterTree();
+      if (note) note.textContent = `${ids.size} acesso(s) carregado(s). Clique em uma tela para ajustar os botões.`;
+    } catch (error) {
+      if (note) note.textContent = 'Não foi possível carregar os acessos da base.';
+      console.error(error);
+    }
+  }
+
+  origin?.addEventListener('change', () => {
+    updateSourceFields();
+    all('input[name="access_ids"]').forEach(input => input.checked = false);
+    synchronize();
+  });
+  profile?.addEventListener('change', loadBase);
+  employee?.addEventListener('change', loadBase);
+
+  updateSourceFields();
+  synchronize();
+  const firstSelected = all('.profile-screen-row').find(screen => accessChecks(screen.dataset.screenKey).some(input => input.checked));
+  if (firstSelected) activateScreen(firstSelected);
+})();
+===== FIM app/static/proposals.js =====
+
+===== INICIO app/access_control.py =====
+from __future__ import annotations
+
+import base64
+import hashlib
+import hmac
+import os
+import secrets
+from datetime import datetime, timedelta, timezone
+from typing import Annotated
+from urllib.parse import urlparse
+
+from fastapi import APIRouter, Depends, Form, HTTPException, Request, status
+from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.templating import Jinja2Templates
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint, delete, func, select
+from sqlalchemy.orm import Mapped, Session, mapped_column, relationship, selectinload
+
+from app.database import Base, engine, get_database_session
+from app.models import Acesso, Departamento, Funcionario, FuncionarioPerfil, Perfil, PerfilAcesso
+
+router = APIRouter()
+templates = Jinja2Templates(directory='app/templates')
+Db = Annotated[Session, Depends(get_database_session)]
+
+ROLE_ADMIN = 'ADMIN_TI'
+ROLE_MANAGER = 'GESTOR_DEPARTAMENTO'
+ROLE_ANALYST = 'ANALISTA_TI'
+SESSION_IDLE_MINUTES = int(os.getenv('SESSION_IDLE_MINUTES', '10'))
+MAX_CONCURRENT_SESSIONS = int(os.getenv('MAX_CONCURRENT_SESSIONS', '2'))
+SESSION_ABSOLUTE_HOURS = int(os.getenv('SESSION_ABSOLUTE_HOURS', '10'))
+
+PROPOSAL_STATUSES = {'RASCUNHO', 'EM_REVISAO', 'DEVOLVIDO', 'APROVADO', 'REJEITADO', 'PUBLICADO', 'ARQUIVADO'}
+PROPOSAL_ORIGINS = {'CRIADO_VAZIO', 'COPIADO_DE_PERFIL', 'CONSOLIDADO_FUNCIONARIO', 'CONSOLIDADO_DEPARTAMENTO_COMUM', 'CONSOLIDADO_DEPARTAMENTO_UNIAO'}
+
+
+class SystemUser(Base):
+    __tablename__ = 'system_users'
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name: Mapped[str] = mapped_column(String(160), nullable=False)
+    email: Mapped[str] = mapped_column(String(255), unique=True, index=True, nullable=False)
+    username: Mapped[str | None] = mapped_column(String(120), unique=True, index=True, nullable=True)
+    password_hash: Mapped[str] = mapped_column(String(512), nullable=False)
+    role: Mapped[str] = mapped_column(String(40), nullable=False, default=ROLE_MANAGER)
+    department_id: Mapped[int | None] = mapped_column(ForeignKey('departamentos.id'), index=True)
+    employee_id: Mapped[int | None] = mapped_column(ForeignKey('funcionarios.id'))
+    active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    department: Mapped[Departamento | None] = relationship()
+    employee: Mapped[Funcionario | None] = relationship()
+
+
+class ProfileProposal(Base):
+    __tablename__ = 'profile_proposals'
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name: Mapped[str] = mapped_column(String(180), nullable=False)
+    description: Mapped[str | None] = mapped_column(Text)
+    justification: Mapped[str | None] = mapped_column(Text)
+    department_id: Mapped[int] = mapped_column(ForeignKey('departamentos.id'), index=True, nullable=False)
+    origin: Mapped[str] = mapped_column(String(60), nullable=False)
+    workflow_status: Mapped[str] = mapped_column(String(30), nullable=False, default='RASCUNHO')
+    source_profile_id: Mapped[int | None] = mapped_column(ForeignKey('perfis.id'))
+    source_employee_id: Mapped[int | None] = mapped_column(ForeignKey('funcionarios.id'))
+    created_by_id: Mapped[int] = mapped_column(ForeignKey('system_users.id'), nullable=False)
+    reviewed_by_id: Mapped[int | None] = mapped_column(ForeignKey('system_users.id'))
+    imported_result_profile_id: Mapped[int | None] = mapped_column(ForeignKey('perfis.id'))
+    version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    submitted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    department: Mapped[Departamento] = relationship(foreign_keys=[department_id])
+    source_profile: Mapped[Perfil | None] = relationship(foreign_keys=[source_profile_id])
+    source_employee: Mapped[Funcionario | None] = relationship(foreign_keys=[source_employee_id])
+    accesses: Mapped[list['ProfileProposalAccess']] = relationship(back_populates='proposal', cascade='all, delete-orphan')
+
+
+class ProfileProposalAccess(Base):
+    __tablename__ = 'profile_proposal_accesses'
+    __table_args__ = (UniqueConstraint('proposal_id', 'access_id', name='uq_proposal_access'),)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    proposal_id: Mapped[int] = mapped_column(ForeignKey('profile_proposals.id', ondelete='CASCADE'), index=True)
+    access_id: Mapped[int] = mapped_column(ForeignKey('acessos.id'), index=True)
+    status: Mapped[str] = mapped_column(String(30), nullable=False)
+    proposal: Mapped[ProfileProposal] = relationship(back_populates='accesses')
+    access: Mapped[Acesso] = relationship()
+
+
+class ProposalHistory(Base):
+    __tablename__ = 'proposal_history'
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    proposal_id: Mapped[int] = mapped_column(ForeignKey('profile_proposals.id', ondelete='CASCADE'), index=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey('system_users.id'))
+    action: Mapped[str] = mapped_column(String(60), nullable=False)
+    details: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+
+
+class LoginSession(Base):
+    __tablename__ = 'login_sessions'
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey('system_users.id'), index=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    last_activity_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), index=True)
+    user: Mapped[SystemUser] = relationship()
+
+
+def create_tables():
+    Base.metadata.create_all(bind=engine)
+
+
+def safe_next_url(value: str | None) -> str:
+    if not value:
+        return '/portal'
+    parsed = urlparse(value)
+    if parsed.scheme or parsed.netloc or not value.startswith('/') or value.startswith('//'):
+        return '/portal'
+    return value
+
+
+def normalize_username(value: str) -> str:
+    username = value.strip().lower()
+    allowed = set('abcdefghijklmnopqrstuvwxyz0123456789._-')
+    if not username or any(char not in allowed for char in username):
+        raise HTTPException(400, 'Usuario invalido. Use letras, numeros, ponto, hifen ou sublinhado.')
+    return username
+
+
+def hash_password(password: str) -> str:
+    salt = os.urandom(16)
+    iterations = 600_000
+    digest = hashlib.pbkdf2_hmac('sha256', password.encode(), salt, iterations)
+    return f'pbkdf2_sha256${iterations}${base64.b64encode(salt).decode()}${base64.b64encode(digest).decode()}'
+
+
+def verify_password(password: str, stored: str) -> bool:
+    try:
+        scheme, iterations, salt, expected = stored.split('$', 3)
+        if scheme != 'pbkdf2_sha256': return False
+        actual = hashlib.pbkdf2_hmac('sha256', password.encode(), base64.b64decode(salt), int(iterations))
+        return hmac.compare_digest(actual, base64.b64decode(expected))
+    except (ValueError, TypeError):
+        return False
+
+
+def current_user_optional(request: Request, session: Db) -> SystemUser | None:
+    token = request.cookies.get('access_session')
+    if not token:
+        return None
+    token_hash = hashlib.sha256(token.encode()).hexdigest()
+    login = session.scalar(
+        select(LoginSession)
+        .options(selectinload(LoginSession.user).selectinload(SystemUser.department))
+        .where(LoginSession.token_hash == token_hash)
+    )
+    if not login:
+        return None
+    now = datetime.now(timezone.utc)
+    idle_limit = now - timedelta(minutes=SESSION_IDLE_MINUTES)
+    if login.expires_at <= now or login.last_activity_at <= idle_limit or not login.user.active:
+        session.delete(login)
+        session.commit()
+        return None
+    login.last_activity_at = now
+    session.commit()
+    return login.user
+
+
+def require_user(user: Annotated[SystemUser | None, Depends(current_user_optional)]) -> SystemUser:
+    if not user: raise HTTPException(status_code=401, detail='Autenticacao obrigatoria')
+    return user
+
+
+def require_admin(user: Annotated[SystemUser, Depends(require_user)]) -> SystemUser:
+    if user.role not in {ROLE_ADMIN, ROLE_ANALYST}: raise HTTPException(status_code=403, detail='Acesso restrito a T.I.')
+    return user
+
+
+def enforce_department(user: SystemUser, department_id: int):
+    if user.role in {ROLE_ADMIN, ROLE_ANALYST}: return
+    if user.department_id is None or user.department_id != department_id:
+        raise HTTPException(status_code=403, detail='Acesso nao autorizado para este departamento')
+
+
+def scoped_employee_query(user: SystemUser):
+    query = select(Funcionario).options(selectinload(Funcionario.departamento)).order_by(Funcionario.nome)
+    if user.role == ROLE_MANAGER:
+        query = query.where(Funcionario.departamento_id == user.department_id)
+    return query
+
+
+def profile_ids_for_department(session: Session, department_id: int):
+    return select(FuncionarioPerfil.perfil_id).join(Funcionario, Funcionario.id == FuncionarioPerfil.funcionario_id).where(Funcionario.departamento_id == department_id).distinct()
+
+
+def proposal_access_map_from_profile(session: Session, profile_id: int):
+    return {access_id: status for access_id, status in session.execute(select(PerfilAcesso.acesso_id, PerfilAcesso.status).where(PerfilAcesso.perfil_id == profile_id))}
+
+
+def proposal_access_map_from_employee(session: Session, employee_id: int):
+    rows = session.execute(select(PerfilAcesso.acesso_id, PerfilAcesso.status).join(FuncionarioPerfil, FuncionarioPerfil.perfil_id == PerfilAcesso.perfil_id).where(FuncionarioPerfil.funcionario_id == employee_id)).all()
+    result = {}
+    for access_id, access_status in rows:
+        normalized = str(access_status or '').casefold()
+        if normalized == 'permitido': result[access_id] = 'Permitido'
+        elif access_id not in result and normalized == 'negado': result[access_id] = 'Negado'
+    return result
+
+
+def proposal_access_map_from_department(session: Session, department_id: int, mode: str):
+    employees = session.scalars(select(Funcionario.id).where(Funcionario.departamento_id == department_id, Funcionario.ativo.is_(True))).all()
+    if not employees: return {}
+    maps = [proposal_access_map_from_employee(session, employee_id) for employee_id in employees]
+    if mode == 'CONSOLIDADO_DEPARTAMENTO_COMUM':
+        common = set(maps[0])
+        for item in maps[1:]: common &= {access_id for access_id, value in item.items() if str(value).casefold() == 'permitido'}
+        return {access_id: 'Permitido' for access_id in common if all(str(item.get(access_id, '')).casefold() == 'permitido' for item in maps)}
+    result = {}
+    for item in maps:
+        for access_id, value in item.items():
+            if str(value).casefold() == 'permitido': result[access_id] = 'Permitido'
+            elif access_id not in result: result[access_id] = value
+    return result
+
+
+def create_history(session: Session, proposal_id: int, user_id: int, action: str, details: str | None = None):
+    session.add(ProposalHistory(proposal_id=proposal_id, user_id=user_id, action=action, details=details))
+
+
+
+
+PUBLIC_PATHS = {'/login', '/health', '/session/activity'}
+PROTECTED_PREFIXES = (
+    '/portal', '/admin', '/estrutura', '/funcionarios', '/perfis', '/comparar', '/api', '/docs', '/redoc', '/openapi.json'
+)
+
+
+def _load_request_user(request: Request, session: Session):
+    token = request.cookies.get('access_session')
+    if not token:
+        return None
+    token_hash = hashlib.sha256(token.encode()).hexdigest()
+    login = session.scalar(
+        select(LoginSession)
+        .options(
+            selectinload(LoginSession.user).selectinload(SystemUser.department)
+        )
+        .where(LoginSession.token_hash == token_hash)
+    )
+    if not login or login.expires_at <= datetime.now(timezone.utc) or not login.user.active:
+        return None
+    return login.user
+
+
+async def integrated_access_middleware(request: Request, call_next):
+    path = request.url.path
+    if path.startswith('/static/'):
+        return await call_next(request)
+
+    with Session(engine) as session:
+        user = _load_request_user(request, session)
+        request.state.current_user = user
+
+        protected = any(path == prefix or path.startswith(prefix + '/') for prefix in PROTECTED_PREFIXES)
+        if protected and not user:
+            return RedirectResponse(f'/login?next={request.url.path}', status_code=303)
+
+        if user:
+            if path.startswith('/funcionarios/'):
+                try:
+                    employee_id = int(path.rstrip('/').split('/')[-1])
+                except ValueError:
+                    employee_id = None
+                if employee_id is not None:
+                    employee = session.get(Funcionario, employee_id)
+                    if not employee:
+                        raise HTTPException(404, 'Funcionario nao encontrado')
+                    enforce_department(user, employee.departamento_id)
+
+            if path.startswith('/perfis/'):
+                try:
+                    profile_id = int(path.rstrip('/').split('/')[-1])
+                except ValueError:
+                    profile_id = None
+                if profile_id is not None and user.role == ROLE_MANAGER:
+                    allowed = session.scalar(
+                        select(func.count())
+                        .select_from(FuncionarioPerfil)
+                        .join(Funcionario)
+                        .where(
+                            FuncionarioPerfil.perfil_id == profile_id,
+                            Funcionario.departamento_id == user.department_id,
+                        )
+                    )
+                    if not allowed:
+                        raise HTTPException(403, 'Perfil fora do departamento')
+
+            if path.startswith('/comparar') and user.role not in {ROLE_ADMIN, ROLE_ANALYST}:
+                raise HTTPException(403, 'Comparacao restrita a T.I.')
+
+    return await call_next(request)
+
+
+@router.get('/login', response_class=HTMLResponse)
+def login_page(request: Request, user: Annotated[SystemUser | None, Depends(current_user_optional)], next: str | None = None, reason: str | None = None):
+    destination = safe_next_url(next)
+    if user:
+        return RedirectResponse(destination, status_code=303)
+    message = 'Sua sessao expirou por inatividade. Entre novamente.' if reason == 'inactive' else None
+    return templates.TemplateResponse(request=request, name='login.html', context={'error': message, 'next_url': destination})
+
+
+@router.post('/login', response_class=HTMLResponse)
+def login(request: Request, session: Db, login: Annotated[str, Form()], password: Annotated[str, Form()], next_url: Annotated[str, Form()] = '/portal'):
+    identifier = login.strip().lower()
+    user = session.scalar(
+        select(SystemUser).where(
+            (func.lower(SystemUser.email) == identifier)
+            | (func.lower(SystemUser.username) == identifier)
+        )
+    )
+    destination = safe_next_url(next_url)
+    if not user or not user.active or not verify_password(password, user.password_hash):
+        return templates.TemplateResponse(
+            request=request,
+            name='login.html',
+            context={'error': 'E-mail, usuario ou senha invalidos', 'next_url': destination},
+            status_code=401,
+        )
+
+    now = datetime.now(timezone.utc)
+    # Remove sessões vencidas antes de aplicar o limite simultâneo.
+    session.execute(
+        delete(LoginSession).where(
+            (LoginSession.user_id == user.id)
+            & (
+                (LoginSession.expires_at <= now)
+                | (LoginSession.last_activity_at <= now - timedelta(minutes=SESSION_IDLE_MINUTES))
+            )
+        )
+    )
+    active_sessions = session.scalars(
+        select(LoginSession)
+        .where(LoginSession.user_id == user.id)
+        .order_by(LoginSession.last_activity_at.asc(), LoginSession.id.asc())
+    ).all()
+    # Política escolhida: permite o novo acesso e encerra as sessões mais antigas.
+    overflow = max(0, len(active_sessions) - MAX_CONCURRENT_SESSIONS + 1)
+    for old_session in active_sessions[:overflow]:
+        session.delete(old_session)
+
+    raw = secrets.token_urlsafe(48)
+    session.add(
+        LoginSession(
+            token_hash=hashlib.sha256(raw.encode()).hexdigest(),
+            user_id=user.id,
+            created_at=now,
+            last_activity_at=now,
+            expires_at=now + timedelta(hours=SESSION_ABSOLUTE_HOURS),
+        )
+    )
+    session.commit()
+    response = RedirectResponse(destination, status_code=303)
+    response.set_cookie(
+        'access_session',
+        raw,
+        httponly=True,
+        samesite='lax',
+        secure=False,
+        max_age=SESSION_ABSOLUTE_HOURS * 3600,
+    )
+    return response
+
+
+
+@router.post('/session/activity')
+def session_activity(request: Request, session: Db):
+    token = request.cookies.get('access_session')
+    if not token:
+        raise HTTPException(401, 'Sessao inexistente')
+    login = session.scalar(select(LoginSession).where(LoginSession.token_hash == hashlib.sha256(token.encode()).hexdigest()))
+    if not login:
+        raise HTTPException(401, 'Sessao inexistente')
+    now = datetime.now(timezone.utc)
+    if login.expires_at <= now or login.last_activity_at <= now - timedelta(minutes=SESSION_IDLE_MINUTES):
+        session.delete(login)
+        session.commit()
+        raise HTTPException(401, 'Sessao expirada')
+    login.last_activity_at = now
+    session.commit()
+    return {'ok': True}
+
+
+@router.post('/logout')
+def logout(request: Request, session: Db):
+    token = request.cookies.get('access_session')
+    if token:
+        session.execute(delete(LoginSession).where(LoginSession.token_hash == hashlib.sha256(token.encode()).hexdigest()))
+        session.commit()
+    response = RedirectResponse('/login', status_code=303)
+    response.delete_cookie('access_session')
+    return response
+
+
+
+
+@router.get('/admin/contas/{account_id}/editar', response_class=HTMLResponse)
+def account_edit_page(
+    request: Request,
+    account_id: int,
+    session: Db,
+    user: Annotated[SystemUser, Depends(require_admin)],
+):
+    account = session.get(SystemUser, account_id)
+    if not account:
+        raise HTTPException(404, 'Conta nao encontrada')
+    departments = session.scalars(select(Departamento).order_by(Departamento.nome)).all()
+    return templates.TemplateResponse(
+        request=request,
+        name='account_edit.html',
+        context={
+            'current_user': user,
+            'user': user,
+            'account': account,
+            'departments': departments,
+            'error': None,
+        },
+    )
+
+
+@router.post('/admin/contas/{account_id}/editar', response_class=HTMLResponse)
+def account_edit_save(
+    request: Request,
+    account_id: int,
+    session: Db,
+    user: Annotated[SystemUser, Depends(require_admin)],
+    name: Annotated[str, Form()],
+    username: Annotated[str, Form()],
+    email: Annotated[str, Form()],
+    role: Annotated[str, Form()],
+    department_id: Annotated[int | None, Form()] = None,
+    active: Annotated[str | None, Form()] = None,
+    new_password: Annotated[str | None, Form()] = None,
+):
+    account = session.get(SystemUser, account_id)
+    if not account:
+        raise HTTPException(404, 'Conta nao encontrada')
+
+    normalized_username = normalize_username(username)
+    normalized_email = email.strip().lower()
+    normalized_name = name.strip()
+    valid_roles = {ROLE_ADMIN, ROLE_ANALYST, ROLE_MANAGER}
+
+    error = None
+    if not normalized_name or '@' not in normalized_email:
+        error = 'Nome ou e-mail invalido.'
+    elif role not in valid_roles:
+        error = 'Papel invalido.'
+    elif role == ROLE_MANAGER and not department_id:
+        error = 'Gestor de departamento precisa ter um departamento.'
+    elif session.scalar(select(SystemUser).where(func.lower(SystemUser.username) == normalized_username, SystemUser.id != account.id)):
+        error = 'Este nome de usuario ja esta em uso.'
+    elif session.scalar(select(SystemUser).where(func.lower(SystemUser.email) == normalized_email, SystemUser.id != account.id)):
+        error = 'Este e-mail ja esta em uso.'
+    elif department_id and not session.get(Departamento, department_id):
+        error = 'Departamento invalido.'
+    elif new_password and len(new_password) < 10:
+        error = 'A nova senha precisa ter pelo menos 10 caracteres.'
+
+    if error:
+        departments = session.scalars(select(Departamento).order_by(Departamento.nome)).all()
+        return templates.TemplateResponse(
+            request=request,
+            name='account_edit.html',
+            context={
+                'current_user': user,
+                'user': user,
+                'account': account,
+                'departments': departments,
+                'error': error,
+            },
+            status_code=400,
+        )
+
+    account.name = normalized_name
+    account.username = normalized_username
+    account.email = normalized_email
+    account.role = role
+    account.department_id = department_id if role == ROLE_MANAGER else department_id
+    account.active = active == 'on'
+    if new_password:
+        account.password_hash = hash_password(new_password)
+    session.commit()
+    return RedirectResponse('/admin/contas', status_code=303)
+
+
+@router.get('/portal', response_class=HTMLResponse)
+def portal(request: Request, session: Db, user: Annotated[SystemUser, Depends(require_user)]):
+    employee_count = session.scalar(select(func.count()).select_from(Funcionario).where(Funcionario.departamento_id == user.department_id)) if user.role == ROLE_MANAGER else session.scalar(select(func.count()).select_from(Funcionario))
+    proposal_query = select(func.count()).select_from(ProfileProposal)
+    if user.role == ROLE_MANAGER: proposal_query = proposal_query.where(ProfileProposal.department_id == user.department_id)
+    return templates.TemplateResponse(request=request, name='portal.html', context={'user': user, 'employee_count': employee_count or 0, 'proposal_count': session.scalar(proposal_query) or 0})
+
+
+@router.get('/portal/funcionarios', response_class=HTMLResponse)
+def portal_employees(
+    request: Request,
+    session: Db,
+    user: Annotated[SystemUser, Depends(require_user)],
+    nome: str = '',
+    departamento_id: int | None = None,
+):
+    nome = nome.strip()
+    ti_manager = user.role in {ROLE_ADMIN, ROLE_ANALYST}
+    query = scoped_employee_query(user)
+    if nome:
+        query = query.where(Funcionario.nome.ilike(f'%{nome}%'))
+    if ti_manager and departamento_id:
+        query = query.where(Funcionario.departamento_id == departamento_id)
+    departments = session.scalars(select(Departamento).order_by(Departamento.nome)).all() if ti_manager else []
+    employees = session.scalars(query).all()
+    return templates.TemplateResponse(
+        request=request,
+        name='portal_employees.html',
+        context={
+            'user': user,
+            'employees': employees,
+            'departments': departments,
+            'filter_name': nome,
+            'filter_department_id': departamento_id,
+            'show_department_filter': ti_manager,
+        },
+    )
+
+@router.get('/portal/funcionarios/{employee_id}', response_class=HTMLResponse)
+def portal_employee_detail(request: Request, employee_id: int, session: Db, user: Annotated[SystemUser, Depends(require_user)]):
+    employee = session.scalar(select(Funcionario).options(selectinload(Funcionario.departamento), selectinload(Funcionario.perfis).selectinload(FuncionarioPerfil.perfil)).where(Funcionario.id == employee_id))
+    if not employee: raise HTTPException(404, 'Funcionario nao encontrado')
+    enforce_department(user, employee.departamento_id)
+    return templates.TemplateResponse(request=request, name='portal_employee.html', context={'user': user, 'employee': employee})
+
+
+
+
+@router.get('/portal/funcionarios/{employee_id}/editar', response_class=HTMLResponse)
+def portal_employee_edit(request: Request, employee_id: int, session: Db, user: Annotated[SystemUser, Depends(require_user)]):
+    employee = session.scalar(select(Funcionario).options(selectinload(Funcionario.departamento)).where(Funcionario.id == employee_id))
+    if not employee:
+        raise HTTPException(404, 'Funcionario nao encontrado')
+    enforce_department(user, employee.departamento_id)
+    departments = session.scalars(select(Departamento).order_by(Departamento.nome)).all() if user.role in {ROLE_ADMIN, ROLE_ANALYST} else [employee.departamento]
+    return templates.TemplateResponse(request=request, name='portal_employee_edit.html', context={'user': user, 'employee': employee, 'departments': departments, 'error': None})
+
+
+@router.post('/portal/funcionarios/{employee_id}/editar', response_class=HTMLResponse)
+def portal_employee_update(request: Request, employee_id: int, session: Db, user: Annotated[SystemUser, Depends(require_user)], name: Annotated[str, Form()], login: Annotated[str, Form()], department_id: Annotated[int, Form()], active: Annotated[str | None, Form()] = None):
+    employee = session.scalar(select(Funcionario).options(selectinload(Funcionario.departamento)).where(Funcionario.id == employee_id))
+    if not employee:
+        raise HTTPException(404, 'Funcionario nao encontrado')
+    enforce_department(user, employee.departamento_id)
+    if user.role == ROLE_MANAGER:
+        department_id = user.department_id
+    elif not session.get(Departamento, department_id):
+        raise HTTPException(400, 'Departamento invalido')
+    normalized_name = name.strip()
+    normalized_login = login.strip().lower()
+    if not normalized_name or not normalized_login or any(char.isspace() for char in normalized_login):
+        raise HTTPException(400, 'Nome ou login invalido')
+    duplicate = session.scalar(select(Funcionario).where(func.lower(Funcionario.login) == normalized_login, Funcionario.id != employee.id))
+    if duplicate:
+        departments = session.scalars(select(Departamento).order_by(Departamento.nome)).all() if user.role in {ROLE_ADMIN, ROLE_ANALYST} else [employee.departamento]
+        return templates.TemplateResponse(request=request, name='portal_employee_edit.html', context={'user': user, 'employee': employee, 'departments': departments, 'error': 'Ja existe outro funcionario com este login.'}, status_code=409)
+    employee.nome = normalized_name
+    employee.login = normalized_login
+    employee.departamento_id = department_id
+    employee.ativo = active == 'on'
+    session.commit()
+    return RedirectResponse(f'/funcionarios/{employee.id}', status_code=303)
+
+
+@router.get('/portal/propostas', response_class=HTMLResponse)
+def proposals(request: Request, session: Db, user: Annotated[SystemUser, Depends(require_user)]):
+    query = select(ProfileProposal).options(selectinload(ProfileProposal.department)).order_by(ProfileProposal.created_at.desc())
+    if user.role == ROLE_MANAGER: query = query.where(ProfileProposal.department_id == user.department_id)
+    return templates.TemplateResponse(request=request, name='proposals.html', context={'user': user, 'proposals': session.scalars(query).all()})
+
+
+@router.get('/portal/propostas/nova', response_class=HTMLResponse)
+def proposal_new(request: Request, session: Db, user: Annotated[SystemUser, Depends(require_user)]):
+    employees = session.scalars(scoped_employee_query(user)).all()
+    profile_query = select(Perfil).order_by(Perfil.nome)
+    if user.role == ROLE_MANAGER: profile_query = profile_query.where(Perfil.id.in_(profile_ids_for_department(session, user.department_id)))
+    departments = session.scalars(select(Departamento).order_by(Departamento.nome)).all() if user.role in {ROLE_ADMIN, ROLE_ANALYST} else [user.department]
+    accesses = session.scalars(select(Acesso).order_by(Acesso.caminho_completo, Acesso.tela_final, Acesso.botao)).all()
+    return templates.TemplateResponse(request=request, name='proposal_new.html', context={'user': user, 'employees': employees, 'profiles': session.scalars(profile_query).all(), 'departments': departments, 'accesses': accesses})
+
+
+@router.post('/portal/propostas/nova')
+def proposal_create(session: Db, user: Annotated[SystemUser, Depends(require_user)], name: Annotated[str, Form()], origin: Annotated[str, Form()], department_id: Annotated[int, Form()], description: Annotated[str, Form()] = '', justification: Annotated[str, Form()] = '', source_profile_id: Annotated[str, Form()] = '', source_employee_id: Annotated[str, Form()] = '', access_selection_present: Annotated[str, Form()] = '', access_ids: Annotated[list[int] | None, Form()] = None):
+    # OPTIONAL_FORM_IDS_FIXED: selects HTML enviam string vazia quando nenhuma base é escolhida.
+    try:
+        source_profile_id = int(source_profile_id) if source_profile_id.strip() else None
+        source_employee_id = int(source_employee_id) if source_employee_id.strip() else None
+    except ValueError:
+        raise HTTPException(status_code=400, detail='Perfil ou funcionário base inválido')
+
+    if origin not in {'COPIADO_DE_PERFIL', 'CONSOLIDADO_FUNCIONARIO'}: raise HTTPException(400, 'Selecione Copiar perfil ou Consolidado de funcionario')
+    if origin == 'COPIADO_DE_PERFIL' and not source_profile_id:
+        raise HTTPException(400, 'Selecione o perfil que deseja copiar')
+    if origin == 'CONSOLIDADO_FUNCIONARIO' and not source_employee_id:
+        raise HTTPException(400, 'Selecione o funcionario que deseja consolidar')
+    enforce_department(user, department_id)
+    if user.role == ROLE_MANAGER: department_id = user.department_id
+    if source_employee_id:
+        employee = session.get(Funcionario, source_employee_id)
+        if not employee: raise HTTPException(404, 'Funcionario de origem nao encontrado')
+        enforce_department(user, employee.departamento_id)
+    if source_profile_id and user.role == ROLE_MANAGER:
+        allowed = session.scalar(select(func.count()).select_from(FuncionarioPerfil).join(Funcionario).where(FuncionarioPerfil.perfil_id == source_profile_id, Funcionario.departamento_id == user.department_id))
+        if not allowed: raise HTTPException(403, 'Perfil base fora do departamento')
+    proposal = ProfileProposal(name=name.strip(), description=description.strip() or None, justification=justification.strip() or None, department_id=department_id, origin=origin, created_by_id=user.id, source_profile_id=source_profile_id, source_employee_id=source_employee_id)
+    session.add(proposal); session.flush()
+    access_map = {}
+    if origin == 'COPIADO_DE_PERFIL' and source_profile_id: access_map = proposal_access_map_from_profile(session, source_profile_id)
+    elif origin == 'CONSOLIDADO_FUNCIONARIO' and source_employee_id: access_map = proposal_access_map_from_employee(session, source_employee_id)
+    elif origin in {'CONSOLIDADO_DEPARTAMENTO_COMUM', 'CONSOLIDADO_DEPARTAMENTO_UNIAO'}: access_map = proposal_access_map_from_department(session, department_id, origin)
+    if access_selection_present == '1': access_map = {access_id: 'Permitido' for access_id in set(access_ids or [])}
+    for access_id, access_status in access_map.items(): session.add(ProfileProposalAccess(proposal_id=proposal.id, access_id=access_id, status=access_status))
+    create_history(session, proposal.id, user.id, 'CRIADA', f'Origem: {origin}')
+    session.commit()
+    return RedirectResponse(f'/portal/propostas/{proposal.id}', status_code=303)
+
+
+@router.get('/portal/propostas/base-acessos')
+def proposal_base_accesses(
+    origin: str,
+    session: Db,
+    user: Annotated[SystemUser, Depends(require_user)],
+    source_id: int,
+):
+    if origin == 'COPIADO_DE_PERFIL':
+        if user.role == ROLE_MANAGER:
+            allowed = session.scalar(select(func.count()).select_from(FuncionarioPerfil).join(Funcionario).where(FuncionarioPerfil.perfil_id == source_id, Funcionario.departamento_id == user.department_id))
+            if not allowed: raise HTTPException(403, 'Perfil fora do departamento')
+        access_map = proposal_access_map_from_profile(session, source_id)
+    elif origin == 'CONSOLIDADO_FUNCIONARIO':
+        employee = session.get(Funcionario, source_id)
+        if not employee: raise HTTPException(404, 'Funcionario nao encontrado')
+        enforce_department(user, employee.departamento_id)
+        access_map = proposal_access_map_from_employee(session, source_id)
+    else:
+        raise HTTPException(400, 'Origem invalida')
+    return {'access_ids': [int(access_id) for access_id, status in access_map.items() if str(status).casefold() == 'permitido']}
+
+
+@router.get('/portal/propostas/{proposal_id}', response_class=HTMLResponse)
+def proposal_detail(request: Request, proposal_id: int, session: Db, user: Annotated[SystemUser, Depends(require_user)]):
+    proposal = session.scalar(select(ProfileProposal).options(selectinload(ProfileProposal.department), selectinload(ProfileProposal.accesses).selectinload(ProfileProposalAccess.access)).where(ProfileProposal.id == proposal_id))
+    if not proposal: raise HTTPException(404, 'Proposta nao encontrada')
+    enforce_department(user, proposal.department_id)
+    return templates.TemplateResponse(request=request, name='proposal_detail.html', context={'user': user, 'proposal': proposal})
+
+
+@router.post('/portal/propostas/{proposal_id}/enviar')
+def proposal_submit(proposal_id: int, session: Db, user: Annotated[SystemUser, Depends(require_user)]):
+    proposal = session.get(ProfileProposal, proposal_id)
+    if not proposal: raise HTTPException(404, 'Proposta nao encontrada')
+    enforce_department(user, proposal.department_id)
+    if proposal.workflow_status not in {'RASCUNHO', 'DEVOLVIDO'}: raise HTTPException(409, 'Estado nao permite envio')
+    proposal.workflow_status = 'EM_REVISAO'; proposal.submitted_at = datetime.now(timezone.utc)
+    create_history(session, proposal.id, user.id, 'ENVIADA_PARA_TI')
+    session.commit(); return RedirectResponse(f'/portal/propostas/{proposal.id}', status_code=303)
+
+
+@router.get('/portal/perfis', response_class=HTMLResponse)
+def portal_profiles(
+    request: Request,
+    session: Db,
+    user: Annotated[SystemUser, Depends(require_user)],
+    nome: str = '',
+    departamento_id: int | None = None,
+):
+    nome = nome.strip()
+    ti_manager = user.role in {ROLE_ADMIN, ROLE_ANALYST}
+    query = select(Perfil).order_by(Perfil.nome)
+    if user.role == ROLE_MANAGER:
+        query = query.where(Perfil.id.in_(profile_ids_for_department(session, user.department_id)))
+    elif departamento_id:
+        query = query.where(Perfil.id.in_(profile_ids_for_department(session, departamento_id)))
+    if nome:
+        query = query.where(Perfil.nome.ilike(f'%{nome}%'))
+    departments = session.scalars(select(Departamento).order_by(Departamento.nome)).all() if ti_manager else []
+    profiles = session.scalars(query).unique().all()
+    return templates.TemplateResponse(
+        request=request,
+        name='portal_profiles.html',
+        context={
+            'user': user,
+            'profiles': profiles,
+            'departments': departments,
+            'filter_name': nome,
+            'filter_department_id': departamento_id,
+            'show_department_filter': ti_manager,
+        },
+    )
+
+@router.get('/portal/perfis/{profile_id}', response_class=HTMLResponse)
+def portal_profile_detail(request: Request, profile_id: int, session: Db, user: Annotated[SystemUser, Depends(require_user)]):
+    profile = session.get(Perfil, profile_id)
+    if not profile:
+        raise HTTPException(404, 'Perfil nao encontrado')
+    if user.role == ROLE_MANAGER:
+        allowed = session.scalar(select(func.count()).select_from(FuncionarioPerfil).join(Funcionario).where(FuncionarioPerfil.perfil_id == profile_id, Funcionario.departamento_id == user.department_id))
+        if not allowed:
+            raise HTTPException(403, 'Perfil fora do departamento')
+    return templates.TemplateResponse(request=request, name='portal_profile.html', context={'user': user, 'profile': profile})
+
+
+@router.get('/admin/contas', response_class=HTMLResponse)
+def accounts(
+    request: Request,
+    session: Db,
+    user: Annotated[SystemUser, Depends(require_admin)],
+):
+    accounts = session.scalars(
+        select(SystemUser)
+        .options(selectinload(SystemUser.department))
+        .order_by(SystemUser.name, SystemUser.email)
+    ).all()
+    departments = session.scalars(
+        select(Departamento).order_by(Departamento.nome)
+    ).all()
+    return templates.TemplateResponse(
+        request=request,
+        name='accounts.html',
+        context={
+            'current_user': user,
+            'user': user,
+            'accounts': accounts,
+            'users': accounts,
+            'system_users': accounts,
+            'departments': departments,
+            'error': None,
+        },
+    )
+
+@router.post('/admin/contas')
+def account_create(session: Db, user: Annotated[SystemUser, Depends(require_admin)], name: Annotated[str, Form()], username: Annotated[str, Form()], email: Annotated[str, Form()], password: Annotated[str, Form()], role: Annotated[str, Form()], department_id: Annotated[int | None, Form()] = None):
+    if role not in {ROLE_ADMIN, ROLE_MANAGER, ROLE_ANALYST}: raise HTTPException(400, 'Papel invalido')
+    if role == ROLE_MANAGER and not department_id: raise HTTPException(400, 'Gestor precisa de departamento')
+    session.add(SystemUser(name=name.strip(), username=normalize_username(username), email=email.strip().lower(), password_hash=hash_password(password), role=role, department_id=department_id, active=True))
+    session.commit(); return RedirectResponse('/admin/contas', status_code=303)
+
+
+@router.post('/admin/propostas/{proposal_id}/{action}')
+def proposal_review(proposal_id: int, action: str, session: Db, user: Annotated[SystemUser, Depends(require_admin)], details: Annotated[str, Form()] = ''):
+    proposal = session.get(ProfileProposal, proposal_id)
+    if not proposal: raise HTTPException(404, 'Proposta nao encontrada')
+    mapping = {'aprovar': 'APROVADO', 'rejeitar': 'REJEITADO', 'devolver': 'DEVOLVIDO'}
+    if action not in mapping: raise HTTPException(400, 'Acao invalida')
+    proposal.workflow_status = mapping[action]; proposal.reviewed_by_id = user.id; proposal.reviewed_at = datetime.now(timezone.utc)
+    create_history(session, proposal.id, user.id, mapping[action], details.strip() or None)
+    session.commit(); return RedirectResponse(f'/portal/propostas/{proposal.id}', status_code=303)
+
+
+# PROPOSAL_UI_V3 - integração corrigida, sem alterar login ou sessão
+def proposal_for_user(session: Session, user: SystemUser, proposal_id: int):
+    proposal=session.scalar(select(ProfileProposal).options(selectinload(ProfileProposal.department),selectinload(ProfileProposal.accesses).selectinload(ProfileProposalAccess.access)).where(ProfileProposal.id==proposal_id))
+    if not proposal: raise HTTPException(404,'Proposta nao encontrada')
+    enforce_department(user,proposal.department_id)
+    return proposal
+
+def proposal_can_edit(user: SystemUser, proposal: ProfileProposal):
+    return proposal.created_by_id==user.id and proposal.workflow_status in {'RASCUNHO','DEVOLVIDO','REJEITADO'}
+
+def proposal_can_delete(user: SystemUser, proposal: ProfileProposal):
+    return proposal.created_by_id==user.id or user.role in {ROLE_ADMIN,ROLE_ANALYST}
+
+@router.get('/portal/propostas/{proposal_id}/editar',response_class=HTMLResponse)
+def proposal_edit_v3(request:Request,proposal_id:int,session:Db,user:Annotated[SystemUser,Depends(require_user)]):
+    proposal=proposal_for_user(session,user,proposal_id)
+    if not proposal_can_edit(user,proposal): raise HTTPException(403,'A proposta nao pode ser editada neste status')
+    accesses=session.scalars(select(Acesso).order_by(Acesso.caminho_completo,Acesso.tela_final,Acesso.botao)).all()
+    selected={item.access_id for item in proposal.accesses}
+    return templates.TemplateResponse(request=request,name='proposal_edit.html',context={'user':user,'proposal':proposal,'accesses':accesses,'selected':selected})
+
+@router.post('/portal/propostas/{proposal_id}/editar')
+def proposal_update_v3(proposal_id:int,session:Db,user:Annotated[SystemUser,Depends(require_user)],name:Annotated[str,Form()],description:Annotated[str,Form()]='',justification:Annotated[str,Form()]='',access_ids:Annotated[list[int]|None,Form()]=None):
+    proposal=proposal_for_user(session,user,proposal_id)
+    if not proposal_can_edit(user,proposal): raise HTTPException(403,'A proposta nao pode ser editada neste status')
+    proposal.name=name.strip(); proposal.description=description.strip() or None; proposal.justification=justification.strip() or None
+    ids=set(access_ids or [])
+    valid=set(session.scalars(select(Acesso.id).where(Acesso.id.in_(ids or {-1}))).all())
+    proposal.accesses.clear(); session.flush()
+    proposal.accesses.extend(ProfileProposalAccess(access_id=i,status='Permitido') for i in valid)
+    create_history(session,proposal.id,user.id,'PROPOSTA_EDITADA',f'{len(valid)} acessos selecionados')
+    session.commit(); return RedirectResponse(f'/portal/propostas/{proposal.id}',status_code=303)
+
+@router.post('/portal/propostas/{proposal_id}/excluir')
+def proposal_delete_v3(proposal_id:int,session:Db,user:Annotated[SystemUser,Depends(require_user)],reason:Annotated[str,Form()]=''):
+    proposal=proposal_for_user(session,user,proposal_id)
+    if not proposal_can_delete(user,proposal): raise HTTPException(403,'Sem permissao para excluir esta proposta')
+    if len(reason.strip())<3: raise HTTPException(400,'Informe o motivo da exclusao')
+    session.delete(proposal); session.commit()
+    return RedirectResponse('/portal/propostas',status_code=303)
+
+===== FIM app/access_control.py =====
+

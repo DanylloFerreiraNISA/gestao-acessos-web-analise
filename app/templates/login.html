@@ -1,0 +1,53 @@
+{% extends "base.html" %}{% block title %}Entrar | Gestao de Acessos{% endblock %}{% block content %}
+<!-- LIMPAR_CABECALHO_EXCLUSIVO_LOGIN_V1 -->
+<style>
+body.login-clean-header > header,
+body.login-clean-header > .topbar,
+body.login-clean-header > nav:first-of-type {
+  display: none !important;
+}
+body.login-clean-header {
+  padding-top: 0 !important;
+}
+</style>
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  document.body.classList.add('login-clean-header');
+
+  // Remove somente o cabecalho da pagina de login. As demais telas nao sao afetadas.
+  const headers = [...document.querySelectorAll('header, .topbar')];
+  headers.forEach(header => {
+    const text = (header.textContent || '').replace(/\s+/g, ' ').trim().toLocaleLowerCase('pt-BR');
+    if (text.includes('gestao de acessos') || text.includes('gestão de acessos') || text.includes('entrar')) {
+      header.style.display = 'none';
+      header.setAttribute('aria-hidden', 'true');
+    }
+  });
+});
+</script>
+<section class="auth-shell">
+<form class="auth-card" method="post"><!-- LOGO_NO_LUGAR_DO_GA_V1 -->
+<div class="login-brand-logo">
+  <img src="{{ url_for('static', path='/images/logo_empresa.jpeg') }}" alt="Logo da empresa">
+</div>
+<style>
+.login-brand-logo{
+  width:170px;
+  height:92px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  margin:0 0 18px;
+  overflow:hidden;
+}
+.login-brand-logo img{
+  display:block;
+  width:100%;
+  height:100%;
+  object-fit:contain;
+}
+@media(max-width:600px){
+  .login-brand-logo{width:145px;height:78px;margin-bottom:14px}
+}
+</style>
+<h1>Gestao de Acessos</h1><p>Entre com seu e-mail corporativo ou nome de usuario.</p>{% if error %}<div class="alert error">{{ error }}</div>{% endif %}<input type="hidden" name="next_url" value="{{ next_url or '/portal' }}"><label>E-mail ou usuario<input name="login" type="text" autocomplete="username" placeholder="usuario.exemplo ou usuario@empresa.com" required autofocus></label><label>Senha<input name="password" type="password" autocomplete="current-password" required></label><button class="primary wide">Entrar</button><small>Por seguranca, a sessao encerra apos 10 minutos sem atividade.</small></form></section>{% endblock %}

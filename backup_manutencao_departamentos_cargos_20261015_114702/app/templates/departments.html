@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block title %}Cadastro de departamentos{% endblock %}
+{% block content %}
+<a class="back" href="/admin/cadastros">Voltar para cadastros</a>
+<section class="hero compact"><p class="eyebrow">Cadastros</p><h1>Cadastro de departamentos</h1><p>Crie departamentos e abra a manutencao de cargos, sistemas e funcionarios.</p></section>
+<form method="post" action="/admin/departamentos" class="panel inline-create"><label>Nome do departamento<input name="nome" required></label><button>Criar departamento</button></form>
+<section class="panel"><div class="responsive-table"><table><thead><tr><th>Departamento</th><th>Situacao</th><th>Acoes</th></tr></thead><tbody>
+{% for item in departments %}<tr><td>{{ item.nome }}</td><td>{{ 'Ativo' if item.ativo else 'Inativo' }}</td><td class="table-actions"><a class="button small" href="/admin/cadastros/departamentos/{{ item.id }}/painel">Gerenciar</a><a class="secondary-button small" href="/admin/cadastros/departamentos/{{ item.id }}/painel/editar">Editar</a></td></tr>
+{% else %}<tr><td colspan="3">Nenhum departamento cadastrado.</td></tr>{% endfor %}
+</tbody></table></div></section>
+{% endblock %}

@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}Perfis | Gestão de Acessos{% endblock %}
+{% block content %}
+<section class="hero compact">
+  <p class="eyebrow">Perfis importados do ERP</p>
+  <h1>Perfis</h1>
+  <p>{% if user.department %}Perfis utilizados por funcionários de {{ user.department.nome }}.{% else %}Todos os perfis disponíveis para T.I.{% endif %}</p>
+</section>
+<form method="get" action="/portal/perfis" class="directory-filters">
+  <label>Pesquisar por nome<input type="search" name="nome" value="{{ filter_name }}" placeholder="Digite o nome do perfil"></label>
+  {% if show_department_filter %}<label>Departamento<select name="departamento_id"><option value="">Todos os departamentos</option>{% for d in departments %}<option value="{{ d.id }}" {% if filter_department_id == d.id %}selected{% endif %}>{{ d.nome }}</option>{% endfor %}</select></label>{% endif %}
+  <label>Origem<select name="origem"><option value="">Todos os perfis</option><option value="PROPOSTA" {% if filter_origin == 'PROPOSTA' %}selected{% endif %}>Gerados em proposta</option><option value="ERP" {% if filter_origin == 'ERP' %}selected{% endif %}>Importados do ERP</option></select></label>
+  <label>Situação<select name="situacao"><option value="ATIVO" {% if filter_status == 'ATIVO' %}selected{% endif %}>Ativos</option><option value="INATIVO" {% if filter_status == 'INATIVO' %}selected{% endif %}>Inativos</option><option value="TODOS" {% if filter_status == 'TODOS' %}selected{% endif %}>Todos</option></select></label>
+  <div class="filter-actions"><button type="submit">Filtrar</button><a href="/portal/perfis">Limpar</a></div>
+</form>
+<p class="filter-result">{{ profiles|length }} perfil(is) encontrado(s).</p>
+<section class="people-grid">
+{% for p in profiles %}
+<a class="person-card" href="/perfis/{{ p.id }}">
+  <strong>{{ p.nome }}</strong>
+  <span>{{ p.situacao }}</span>
+  <small>{% if p.id in generated_profile_ids %}Gerado na proposta{% else %}Importado do ERP{% endif %}</small>
+</a>
+{% else %}<article class="panel">Nenhum perfil encontrado com os filtros informados.</article>{% endfor %}
+</section>
+{% endblock %}

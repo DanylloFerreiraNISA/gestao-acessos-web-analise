@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}Perfis atuais{% endblock %}
+{% block content %}
+<section class="hero">
+  <p class="eyebrow">Consulta</p>
+  <h1>Perfis atuais</h1>
+  <p>Perfis importados, usuarios vinculados e quantidade de acessos.</p>
+</section>
+<form class="filters profiles-filter" method="get">
+  <input name="busca" value="{{ busca }}" placeholder="Pesquisar perfil">
+  <select name="situacao">
+    <option value="">Todas as situacoes</option>
+    {% for item in situacoes %}
+    <option value="{{ item }}" {% if item == situacao_selecionada %}selected{% endif %}>{{ item }}</option>
+    {% endfor %}
+  </select>
+  <button type="submit">Filtrar</button>
+  <a href="/perfis" class="secondary">Limpar</a>
+</form>
+<section class="profiles-grid">
+  {% for perfil, usuarios, acessos in linhas %}
+  <a class="profile-card" href="/perfis/{{ perfil.id }}">
+    <div class="profile-card-title">
+      <strong>{{ perfil.nome }}</strong>
+      <span class="status">{{ perfil.situacao }}</span>
+    </div>
+    <div class="profile-numbers">
+      <span><b>{{ usuarios }}</b> usuarios</span>
+      <span><b>{{ acessos }}</b> acessos</span>
+    </div>
+    <small>Atualizado: {{ perfil.ultima_atualizacao or 'Nao informado' }}</small>
+  </a>
+  {% else %}
+  <article class="panel">Nenhum perfil encontrado.</article>
+  {% endfor %}
+</section>
+{% endblock %}

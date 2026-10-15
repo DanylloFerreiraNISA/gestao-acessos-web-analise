@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}{{ profile.nome }} | Gestão de Acessos{% endblock %}
+{% block content %}
+<a class="back" href="/portal/perfis">Voltar para perfis</a>
+<section class="hero compact">
+  <p class="eyebrow">Perfil</p>
+  <h1>{{ profile.nome }}</h1>
+  <p>{{ profile.situacao }} · {% if generated_proposal %}Gerado na proposta #{{ generated_proposal.id }}{% else %}Importado do ERP{% endif %}</p>
+  {% if generated_proposal and is_admin %}
+  <form method="post" action="/portal/perfis/{{ profile.id }}/situacao">
+    <input type="hidden" name="situacao" value="{{ 'Inativo' if profile.situacao != 'Inativo' else 'Ativo' }}">
+    <button type="submit">{{ 'Inativar perfil' if profile.situacao != 'Inativo' else 'Reativar perfil' }}</button>
+  </form>
+  {% endif %}
+</section>
+<section class="panel">
+  <h2>Árvore de acessos</h2>
+  {% set ns = namespace(path='', screen='', path_open=false, screen_open=false) %}
+  {% for item in accesses %}{% set a = item.acesso %}
+    {% if ns.path != a.caminho_completo %}
+      {% if ns.screen_open %}</ul></details>{% set ns.screen_open = false %}{% endif %}
+      {% if ns.path_open %}</div></details>{% endif %}
+      <details open><summary><strong>{{ a.caminho_completo }}</strong></summary><div>
+      {% set ns.path = a.caminho_completo %}{% set ns.screen = '' %}{% set ns.path_open = true %}
+    {% endif %}
+    {% if ns.screen != a.tela_final %}
+      {% if ns.screen_open %}</ul></details>{% endif %}
+      <details open><summary>{{ a.tela_final }}</summary><ul>
+      {% set ns.screen = a.tela_final %}{% set ns.screen_open = true %}
+    {% endif %}
+    <li>{{ a.botao }} <small>({{ item.status }})</small></li>
+  {% else %}<p>Este perfil não possui acessos cadastrados.</p>{% endfor %}
+  {% if ns.screen_open %}</ul></details>{% endif %}
+  {% if ns.path_open %}</div></details>{% endif %}
+</section>
+{% endblock %}

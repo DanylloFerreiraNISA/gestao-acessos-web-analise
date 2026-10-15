@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}Importações{% endblock %}
+{% block content %}
+{% if import_error %}
+<div class="alert error"><strong>A importação não foi concluída.</strong><br>{{ import_error }}</div>
+{% endif %}
+
+<section class="hero compact"><p class="eyebrow">Administração de T.I.</p><h1>Importação de acessos</h1><p>Pré-visualize a planilha antes de alterar o banco.</p></section>
+<form class="panel import-form" method="post" action="/portal/importacoes/preview" enctype="multipart/form-data">
+  <label>Planilha XLSX<input type="file" name="arquivo" accept=".xlsx" required></label>
+  <button type="submit">Analisar planilha</button>
+</form>
+{% if preview %}
+<section class="panel"><h2>Pré-visualização</h2>
+<div class="import-summary"><article><span>Usuários</span><strong>{{ preview.usuarios }}</strong></article><article><span>Perfis</span><strong>{{ preview.perfis }}</strong></article><article><span>Acessos terminais</span><strong>{{ preview.acessos_terminais }}</strong></article></div>
+{% for warning in preview.avisos %}<div class="alert">{{ warning }}</div>{% endfor %}
+<h3>Abas encontradas</h3><div class="responsive-table"><table><thead><tr><th>Aba</th><th>Linhas</th><th>Colunas</th></tr></thead><tbody>{% for sheet in preview.abas %}<tr><td>{{ sheet.nome }}</td><td>{{ sheet.linhas }}</td><td>{{ sheet.colunas }}</td></tr>{% endfor %}</tbody></table></div>
+<form method="post" action="/portal/importacoes/confirmar" class="confirm-import"><input type="hidden" name="token" value="{{ token }}"><button type="submit" class="approve">Confirmar importação</button></form>
+</section>{% endif %}
+<section class="panel"><h2>Histórico</h2><div class="responsive-table"><table><thead><tr><th>Arquivo</th><th>Status</th><th>Data</th><th>Resultado</th></tr></thead><tbody>{% for item in history %}<tr><td>{{ item.arquivo }}</td><td>{{ item.status }}</td><td>{{ item.criado_em }}</td><td><code>{{ item.resultado_json or '-' }}</code></td></tr>{% else %}<tr><td colspan="4">Nenhuma importação executada.</td></tr>{% endfor %}</tbody></table></div></section>
+{% endblock %}
